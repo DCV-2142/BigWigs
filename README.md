@@ -1,5 +1,13 @@
-Various updates to K40 modules. Mostly tested.
-## Karazhan 40 Changelog
+Various updates to K40 modules with lots of customization (check your boss settings!). Mostly tested.
+## Karazhan 40 - Highlights
+* Trash - many additional mobs and mechanics (including "don't move" and "don't cast")
+* Keeper - accurate Owl phase timer
+* Incantagos - Affinity auto-targeting, Surge of Mana announce, Blizzard warning
+* Anomalus - Floor Zone warnings
+* Echo - additional warnings, optional timers to align Resto Pot usage
+* Chess - accurate cast bars (hide, SBV), Curse CD (to allign hide phases)
+* Sanv - bar for add phase duration
+## Karazhan 40 - Full Changelog
 ### General
 * Fixed various triggers and unit tests being based on formatted logs, eg " (1)".
 * Changed a few sound effects.
