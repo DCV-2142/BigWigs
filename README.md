@@ -58,6 +58,7 @@ Various updates to K40 modules with lots of customization (check your boss setti
 * Added warning for Empowered Shadow Bolt casts for Bishop tank (default: off).
 * Added timer bar for King's Curse cooldown (default: on).
 * Print Troubleshoot Info (default: off): King's Fury casts, King's Fury hide fails, Dark Subservience /bow fails
+* Moved Dark Subservience cast messages to their own setting (default: off unless Shaman) to reduce spam.
 ### Sanv Tas'dal
 * Added alerts for Portal Opening and Enrage (always on).
 * Added timer bar for add phase (default: on).
