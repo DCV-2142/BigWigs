@@ -226,11 +226,9 @@ function module:OnEnable()
 	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_CREATURE_BUFFS", "EnemyDebuffEvent")
 	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE", "EnemyDebuffEvent")
 
-	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_PARTY_DAMAGE", "SpellHitEvent")
 	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", "SpellHitEvent")
-
-	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_PARTY_DAMAGE", "DebuffHitEvent")
-	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE", "DebuffHitEvent")
+	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_PARTY_DAMAGE", "SpellHitEvent")
+	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE", "SpellHitEvent")
 
 	if self.db.profile.bishoptonguesalert then
 		self:ScheduleRepeatingEvent("BishopDebuffScan", self.ScanBishopDebuffs, timer.bishopScan, self)
@@ -358,6 +356,12 @@ function module:AfflictionEvent(msg)
 			return
 		end
 	end
+	if self.db.profile.printchess then
+		local _,_,player,amount = string.find(msg, L["trigger_subservienceHit"])
+		if player and amount and tonumber(amount) > 6000 then
+			print(msg)
+		end
+	end
 
 	-- Charming Presence
 	local _, _, player = string.find(msg, L["trigger_charmingPresenceOther"])
@@ -469,15 +473,6 @@ function module:SpellHitEvent(msg)
 	if self.db.profile.printchess then
 		local _,_,player,amount = string.find(msg, L["trigger_kingsFuryHit"])
 		if player and amount and tonumber(amount) > 8000 then
-			print(msg)
-		end
-	end
-end
-
-function module:DebuffHitEvent(msg)
-	if self.db.profile.printchess then
-		local _,_,player,amount = string.find(msg, L["trigger_subservienceHit"])
-		if player and amount and tonumber(amount) > 6000 then
 			print(msg)
 		end
 	end
@@ -785,7 +780,7 @@ function module:Test()
 
 		{ time = 10, func = function()
 			local msg = "Alice suffers 30000 Shadow damage from Queen's Dark Subservience."
-			module:DebuffHitEvent(msg)
+			module:AfflictionEvent(msg)
 			print("Test: " .. msg)
 		end },
 
