@@ -59,6 +59,10 @@ Various updates to K40 modules with lots of customization (check your boss setti
 * Added timer bar for King's Curse cooldown (default: on).
 * Print Troubleshoot Info (default: off): King's Fury casts, King's Fury hide fails, Dark Subservience /bow fails
 * Moved Dark Subservience cast messages to their own setting (default: off unless Shaman) to reduce spam.
+* Dark Subservience affliction warnings are now split between self (default: on) and others (default: off) to further reduce spam.
+* "Dark Subservience on You" will also give a pre-warning based on Queen starting to cast, even if cast warnings are disabled.
+* Added audio feedback on King's Fury end and successful /bow.
+* Added Queen's Fury magnitude alerts showing stack count and rough tick damage (default: off).
 ### Sanv Tas'dal
 * Added alerts for Portal Opening and Enrage (always on).
 * Added timer bar for add phase (default: on).
