@@ -1,9 +1,9 @@
 local module, L = BigWigs:ModuleDeclaration("King", "Karazhan")
 
 -- module variables
-module.revision = 30003
+module.revision = 30004
 module.enabletrigger = module.translatedName
-module.toggleoptions = { "kingsfury", "kingscursecd", "voidzone", -1, "subservience", "subserviencecast", "marksubservience", "decursebow", "throttlebow", "charmingpresence", "markmindcontrol", -1, "knightsglory", "bishoptonguesalert", "bishopvolley", "empoweredsb", -1, "printchess", "bosskill" }
+module.toggleoptions = { "kingsfury", "kingscursecd", "voidzone", -1, "subservienceyou", "subservienceothers", "subserviencecast", "marksubservience", "decursebow", "throttlebow", "charmingpresence", "markmindcontrol", "queensfury", -1, "knightsglory", "bishoptonguesalert", "bishopvolley", "empoweredsb", -1, "printchess", "bosskill" }
 module.zonename = {
 	AceLibrary("AceLocale-2.2"):new("BigWigs")["Tower of Karazhan"],
 	AceLibrary("Babble-Zone-2.2")["Tower of Karazhan"],
@@ -17,13 +17,15 @@ module.defaultDB = {
 	kingsfury = true,
 	kingscursecd = true,
 	voidzone = true,
-	subservience = true,
+	subservienceyou = true,
+	subservienceothers = false,
 	subserviencecast = playerClass == "SHAMAN",
 	marksubservience = true,
 	decursebow = playerClass == "MAGE" or playerClass == "DRUID",
 	throttlebow = true,
 	charmingpresence = playerClass == "SHAMAN",
 	markmindcontrol = true,
+	queensfury = false,
 	knightsglory = false,
 	bishoptonguesalert = true,
 	bishopvolley = true,
@@ -48,9 +50,13 @@ L:RegisterTranslations("enUS", function()
 		voidzone_name = "Void Zone Alert",
 		voidzone_desc = "Warns when King casts Blunder (Void Zone)",
 
-		subservience_cmd = "subservience",
-		subservience_name = "Dark Subservience Alert",
-		subservience_desc = "Warns when you or others are afflicted by Dark Subservience",
+		subservienceyou_cmd = "subservienceyou",
+		subservienceyou_name = "Dark Subservience on You",
+		subservienceyou_desc = "Warns when you are afflicted by Dark Subservience or when the Queen is casting it on you",
+
+		subservienceothers_cmd = "subservienceothers",
+		subservienceothers_name = "Dark Subservience on Others",
+		subservienceothers_desc = "Warns when others are afflicted by Dark Subservience",
 
 		subserviencecast_cmd = "subserviencecast",
 		subserviencecast_name = "Dark Subservience Casts",
@@ -75,6 +81,10 @@ L:RegisterTranslations("enUS", function()
 		markmindcontrol_cmd = "markmindcontrol",
 		markmindcontrol_name = "Mark Mind Controlled Target",
 		markmindcontrol_desc = "Marks players affected by King's Curse with X raid icon (requires assistant or leader)",
+
+		queensfury_cmd = "queensfury",
+		queensfury_name = "Queen's Fury Magnitude",
+		queensfury_desc = "Warns about the current magnitude of Queen's Fury (ramping-up aoe in phase 3)",
 
 		knightsglory_cmd = "knightsglory",
 		knightsglory_name = "Knight's Glory Alert",
@@ -103,7 +113,7 @@ L:RegisterTranslations("enUS", function()
 		trigger_subservienceYou = "You are afflicted by Dark Subservience",
 		trigger_subservienceOther = "(.+) is afflicted by Dark Subservience",
 		trigger_subservienceFade = "Dark Subservience fades from (.+)",
-		trigger_subservienceFailed = "Dark Subservience fails. Grounding Totem",
+		trigger_subservienceFailed = "Dark Subservience fails. Grounding Totem", --not observed in logs since April 2025
 
 		trigger_kingscurseYou = "You are afflicted by King's Curse", --unused
 		trigger_kingscurseOther = "(.+) is afflicted by King's Curse",
@@ -112,6 +122,8 @@ L:RegisterTranslations("enUS", function()
 		trigger_charmingPresenceYou = "You are afflicted by Charming Presence",
 		trigger_charmingPresenceOther = "(.+) is afflicted by Charming Presence",
 		trigger_charmingPresenceFade = "Charming Presence fades from (.+)",
+		
+		trigger_queensfury = "Queen gains (.+) Fury %((%d+)%)%.",
 
 		trigger_knightsGloryGain = "(.+) gains Knight",
 		trigger_knightsGloryFade = "Glory fades from (.+)%.",
@@ -124,12 +136,16 @@ L:RegisterTranslations("enUS", function()
 
 		msg_kingCastFury = "King's Fury! - go hide",
 		msg_kingCastFuryFast = "Hasted King's Fury! - HIDE",
+		msg_kingFurySafe = "Safe!",
 		msg_voidzone = "Void Zone MOVE!",
 
 		msg_subservienceYou = "YOU need to go Bow to the Queen!",
 		msg_subservienceOther = "%s needs to go Bow!",
 		msg_queenCastingSubservience = "Queen began casting on %s!",
+		msg_queenCastingSubservienceYou = "Dark Subservience incoming! Get ready to /bow (unless grounded).",
 		msg_queenSubservienceTotem = "Totem ate cast instead of %s!",
+		msg_queenSubservienceTotemYou = "Safe from /bow! Totem ate cast.",
+		msg_queensfury = "Queen's Fury %s ticking for ",
 
 		warning_bow = "BOW TO THE QUEEN!",
 		warn_kingsfury = "HIDE",
@@ -184,6 +200,7 @@ local syncName = {
 	kingCastFury = "ChessKingCastFury" .. module.revision,
 	subservienceFailed = "ChessSubservienceFailed" .. module.revision,
 	charmingPresence = "ChessCharmingPresence" .. module.revision,
+	queensfury = "ChessQueensFury" .. module.revision,
 	bishopNoCurse = "ChessBishopNoCurse" .. module.revision,
 	voidzone = "ChessVoidZone" .. module.revision,
 	kingGloryGain = "ChessKingGloryGain" .. module.revision,
@@ -272,6 +289,7 @@ function module:OnEnable()
 	self:ThrottleSync(2, syncName.kingCastFury)
 	self:ThrottleSync(2, syncName.subservienceFailed)
 	self:ThrottleSync(2, syncName.charmingPresence)
+	self:ThrottleSync(5, syncName.queensfury)
 	self:ThrottleSync(2, syncName.bishopNoCurse)
 	self:ThrottleSync(2, syncName.voidzone)
 	self:ThrottleSync(1, syncName.kingGloryGain)
@@ -381,6 +399,8 @@ end
 function module:CHAT_MSG_SPELL_AURA_GONE_SELF(msg)
 	if string.find(msg, L["trigger_subservienceFade"]) then
 		self:RemoveBar(L["bar_subservience"])
+		self:RemoveWarningSign(icon.subservience, true)
+		self:Sound("Long")
 
 		if self.db.profile.marksubservience then
 			self:RestorePreviousRaidTargetForPlayer(UnitName("player"))
@@ -392,6 +412,12 @@ function module:CHAT_MSG_SPELL_AURA_GONE_SELF(msg)
 end
 
 function module:EnemyDebuffEvent(msg)
+	-- Queen's Fury
+	local _,_,_,fury = string.find(msg, L["trigger_queensfury"])
+	if fury then
+		self:Sync(syncName.queensfury .. " " .. fury)
+	end
+	
 	-- Knight's Glory
 	local _,_,mob = string.find(msg, L["trigger_knightsGloryGain"])
 	if mob then
@@ -491,6 +517,10 @@ function module:BigWigs_RecvSync(sync, rest, nick)
 		if self.db.profile.charmingpresence then
 			self:StartCharmingPresenceTimer()
 		end
+	elseif sync == syncName.queensfury and rest then
+		if self.db.profile.queensfury then
+			self:Message(string.format(L["msg_queensfury"], rest)..(tonumber(rest)*70), "Purple")
+		end
 	elseif sync == syncName.bishopNoCurse then
 		self:BishopNeedsCurseOfTongues()
 	elseif sync == syncName.voidzone and rest then
@@ -535,28 +565,24 @@ function module:StartCharmingPresenceTimer()
 end
 
 function module:QueenCastingSubservience(playerName)
-	if not self.db.profile.subserviencecast then
-		return
-	end
 	self.queenTarget = playerName
-
-	self:Message(string.format(L["msg_queenCastingSubservience"], playerName), "Attention", nil, "Info")
+	if playerName == UnitName("player") and self.db.profile.subservienceyou then
+		self:Message(L["msg_queenCastingSubservienceYou"], "Urgent", nil, "Beware")
+	elseif self.db.profile.subserviencecast then
+		self:Message(string.format(L["msg_queenCastingSubservience"], playerName), "Attention", nil, "Info")
+	end	
 end
 
-function module:SubservienceFailed(playerName)
-	if not self.db.profile.subserviencecast then
-		return
-	end
-
-	self:Message(string.format(L["msg_queenSubservienceTotem"], playerName), "Positive")
+function module:SubservienceFailed(playerName) --might be defunct
+	if playerName == UnitName("player") and self.db.profile.subservienceyou then
+		self:Message(L["msg_queenSubservienceTotemYou"], "Positive", nil, "Long")
+	elseif self.db.profile.subserviencecast then
+		self:Message(string.format(L["msg_queenSubservienceTotem"], playerName), "Positive")
+	end	
 end
 
 function module:Subservience(player)
-	if not self.db.profile.subservience then
-		return
-	end
-
-	if player == UnitName("player") then
+	if player == UnitName("player") and self.db.profile.subservienceyou then
 		self:Message(L["msg_subservienceYou"], "Important")
 		self:WarningSign(icon.subservience, timer.subservience, true, L["warning_bow"])
 		self:Bar(L["bar_subservience"], timer.subservience, icon.subservience)
@@ -568,9 +594,7 @@ function module:Subservience(player)
 		end)
 
 		self:Sound("GoBow")
-	else
-		self:Message(string.format(L["msg_subservienceOther"], player), "Important")
-
+	else --Subservience on others
 		-- Check for King's Curse directly if decursebow is enabled
 		if self.db.profile.decursebow then
 			-- Find the player in raid
@@ -598,6 +622,11 @@ function module:Subservience(player)
 				end
 			end
 		end
+		
+		-- Post warning message if enabled
+		if self.db.profile.subservienceothers then
+			self:Message(string.format(L["msg_subservienceOther"], player), "Important")
+		end		
 	end
 
 	if self.db.profile.marksubservience then
@@ -645,6 +674,7 @@ function module:KingCastFury()
 	local castTime = timer.kingsfury / (1 + (0.5 * kingHasGlory))
 	self:Bar(L["bar_kingsfury"], castTime, icon.kingsfury)
 	self:WarningSign(icon.kingsfury, castTime, true, L["warn_kingsfury"])
+	self:DelayedMessage(castTime+0.2, L["msg_kingFurySafe"], "Positive", false, "Long", false)
 end
 
 function module:VoidZoneAlert(player)
@@ -928,6 +958,20 @@ function module:Test()
 			print("Test: " .. msg)
 		end },
 
+		-- Queen's Fury stack
+		{ time = 41, func = function()
+			local msg = "Queen gains Queen’s Fury."
+			module:EnemyDebuffEvent(msg)
+			print("Test: " .. msg)
+		end },
+
+		-- Queen's Fury stack
+		{ time = 42, func = function()
+			local msg = "Queen gains Queen’s Fury (4)."
+			module:EnemyDebuffEvent(msg)
+			print("Test: " .. msg)
+		end },
+
 		-- Add to the events table inside the Test function
 		{ time = 43, func = function()
 			print("Test: King casts Void Zone (Blunder) on player")
@@ -935,6 +979,13 @@ function module:Test()
 			local _, playerGuid = UnitExists("player")
 			local kingGuid = "king"
 			module:KingCastEvent(kingGuid, playerGuid, "CAST", spellIds.blunder, 0)
+		end },
+
+		-- Queen's Fury stack
+		{ time = 45, func = function()
+			local msg = "Queen gains Queen’s Fury (6)."
+			module:EnemyDebuffEvent(msg)
+			print("Test: " .. msg)
 		end },
 
 		-- Add to the events table inside the Test function
