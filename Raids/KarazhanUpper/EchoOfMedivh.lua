@@ -188,12 +188,16 @@ local lastCorruption = 0
 
 function module:OnEnable()
 	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE", "AfflictionEvent")
+	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_PARTY_DAMAGE", "AfflictionEvent")
 	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_FRIENDLYPLAYER_DAMAGE", "AfflictionEvent")
+	
 	self:RegisterEvent("CHAT_MSG_SPELL_AURA_GONE_SELF")
-	self:RegisterEvent("CHAT_MSG_SPELL_AURA_GONE_OTHER")
-	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE")
+	self:RegisterEvent("CHAT_MSG_SPELL_AURA_GONE_PARTY", "FadesEvent")
+	self:RegisterEvent("CHAT_MSG_SPELL_AURA_GONE_OTHER", "FadesEvent")
+
 	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_CREATURE_BUFFS")
-	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE", "SpellHitEvent")
+	
+	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE")
 	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_PARTY_DAMAGE", "SpellHitEvent")
 	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", "SpellHitEvent")
 end
@@ -272,7 +276,7 @@ function module:CHAT_MSG_SPELL_AURA_GONE_SELF(msg)
 	end
 end
 
-function module:CHAT_MSG_SPELL_AURA_GONE_OTHER(msg)
+function module:FadesEvent(msg)
 	local _, _, player = string.find(msg, L["trigger_corruptionFadeOther"])
 	if player then
 		self:CorruptionFade(player)
@@ -299,6 +303,9 @@ function module:CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE(msg)
 			self:Message(string.format(L["msg_cast"], spell), "Important", true, "Info")
 			self:WarningSign(icon.flamestrike, 1, false, L["warn_cast"])
 		end
+	end
+	if self.db.profile.printecho and string.find(msg, L["trigger_shadowBoltHit"]) then
+		print(msg)
 	end
 end
 
@@ -519,13 +526,13 @@ function module:Test()
 		{ time = 17, func = function()
 			local member = UnitName("raid1") or "Player1"
 			print("Test: Corruption of Medivh fades from " .. member)
-			module:CHAT_MSG_SPELL_AURA_GONE_OTHER("Corruption of Medivh fades from " .. member)
+			module:FadesEvent("Corruption of Medivh fades from " .. member)
 		end },
 
 		{ time = 18, func = function()
 			local member = UnitName("raid2") or "Player2"
 			print("Test: Corruption of Medivh fades from " .. member)
-			module:CHAT_MSG_SPELL_AURA_GONE_OTHER("Corruption of Medivh fades from " .. member)
+			module:FadesEvent("Corruption of Medivh fades from " .. member)
 		end },
 
 		{ time = 20, func = function()
@@ -548,7 +555,7 @@ function module:Test()
 		{ time = 25, func = function()
 			print("Test: You are afflicted by Doom of Medivh (4). Also Ire fades.")
 			module:AfflictionEvent("You are afflicted by Doom of Medivh (4).")
-			module:CHAT_MSG_SPELL_AURA_GONE_OTHER("Guardian's Ire fades from Echo of Medivh")
+			module:FadesEvent("Guardian's Ire fades from Echo of Medivh")
 		end },
 
 		-- Pyroblast
@@ -568,7 +575,7 @@ function module:Test()
 		{ time = 33, func = function()
 			local member = UnitName("raid3") or "Player3"
 			print("Test: Corruption of Medivh fades from " .. member .. ". Also Ire 2")
-			module:CHAT_MSG_SPELL_AURA_GONE_OTHER("Corruption of Medivh fades from " .. member)
+			module:FadesEvent("Corruption of Medivh fades from " .. member)
 			module:CHAT_MSG_SPELL_PERIODIC_CREATURE_BUFFS("Echo of Medivh gains Guardian's Ire (2).")
 		end },
 
@@ -595,7 +602,7 @@ function module:Test()
 			module:CHAT_MSG_COMBAT_FRIENDLY_DEATH(member .. " dies")
 			
 			module:CHAT_MSG_SPELL_PERIODIC_CREATURE_BUFFS("Echo of Medivh gains Medivh's Fury.")
-			module:CHAT_MSG_SPELL_AURA_GONE_OTHER("Guardian's Ire fades from Echo of Medivh")
+			module:FadesEvent("Guardian's Ire fades from Echo of Medivh")
 		end },
 		
 		-- Arcane Focus on tank
