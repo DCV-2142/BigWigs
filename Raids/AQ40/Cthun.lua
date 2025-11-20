@@ -25,7 +25,7 @@ module.toggleoptions = {
 }
 module.defaultDB = {
 	mapX = 600,
-	mapY = -400,
+	mapY = 400,
 	mapAlpha = 1,
 	mapScale = 1,
 	autotarget = false,
@@ -961,7 +961,7 @@ function module:SetupMap()
 	cthunmap:SetBackdropBorderColor(1.0, 1.0, 1.0)
 	cthunmap:SetBackdropColor(24 / 255, 24 / 255, 24 / 255)
 	cthunmap:ClearAllPoints()
-	cthunmap:SetPoint("TOPLEFT", nil, "TOPLEFT", self.db.profile.mapX, self.db.profile.mapY)
+	cthunmap:SetPoint("TOPLEFT", nil, "BOTTOMLEFT", self.db.profile.mapX, self.db.profile.mapY)
 	cthunmap:EnableMouse(true)
 	cthunmap:SetClampedToScreen(true)
 	cthunmap:RegisterForDrag("LeftButton")
