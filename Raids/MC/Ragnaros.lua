@@ -3,12 +3,19 @@ local module, L = BigWigs:ModuleDeclaration("Ragnaros", "Molten Core")
 
 module.revision = 30080
 module.enabletrigger = module.translatedName
-module.toggleoptions = {"emerge", "wrathofragnaros", "lava", "adds", "melt", "elementalfire", "elementalfiresay", "elementalfiremark", "bosskill"}
+module.toggleoptions = {"emerge", "wrathofragnaros", "lava", "adds", "melt", "elementalfire", -1, "tankalert", "tankwrathhit", "tankwrathresist", "tankmark", "bosskill"}
 module.wipemobs = {"Son of Flame"}
 module.defaultDB = {
+	emerge = true,
+	wrathofragnaros = true,
+	lava = false,
 	adds = false,
-	elementalfire = false, -- only trigger the "say" by default
-	elementalfiremark = false
+	melt = false,
+	elementalfire = false,
+	tankalert = true,
+	tankwrathhit = true,
+	tankwrathresist = true,
+	tankmark = true,
 }
 
 L:RegisterTranslations("enUS", function() return {
@@ -35,16 +42,24 @@ L:RegisterTranslations("enUS", function() return {
 	melt_desc = "Warn for Melt Weapon",
 	
 	elementalfire_cmd = "elementalfire",
-	elementalfire_name = "Elemental Fire Alert",
-	elementalfire_desc = "Warn for Elemental Fire",
+	elementalfire_name = "Elemental Fire Bars",
+	elementalfire_desc = "Show a duration bar for all current victims of Elemental Fire",
 	
-	elementalfiresay_cmd = "elementalfiresay",
-	elementalfiresay_name = "Elemental Fire Announce",
-	elementalfiresay_desc = "Announce to /say when you get Elemental Fire",
+	tankalert_cmd = "tankalert",
+	tankalert_name = "Tank Swap Alert",
+	tankalert_desc = "Warning message whenever the character receiving melee hits changes",
 	
-	elementalfiremark_cmd = "elementalfiremark",
-	elementalfiremark_name = "Elemental Fire Mark",
-	elementalfiremark_desc = "Mark victims of Elemental Fire (and unmark them once it runs out)",
+	tankwrathhit_cmd = "tankwrathhit",
+	tankwrathhit_name = "Tank Knockback Alert",
+	tankwrathhit_desc = "Warns when the current tank gets knocked back by Wrath of Ragnaros",
+	
+	tankwrathresist_cmd = "tankwrathresist",
+	tankwrathresist_name = "Tank Knockback Resist",
+	tankwrathresist_desc = "Confirms that the current tank resisted Wrath of Ragnaros' knockback",
+	
+	tankmark_cmd = "tankmark",
+	tankmark_name = "Tank Mark",
+	tankmark_desc = "Marks the current tank with Skull, clears mark on knockback",
 	
 
 		--74.137
@@ -87,12 +102,20 @@ L:RegisterTranslations("enUS", function() return {
 	
 	trigger_elementalFireYou = "You are afflicted by Elemental Fire.", --CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE
 	trigger_elementalFireOther = "(.+) is afflicted by Elemental Fire.", --CHAT_MSG_SPELL_PERIODIC_PARTY_DAMAGE //CHAT_MSG_SPELL_PERIODIC_FRIENDLYPLAYER_DAMAGE
-	trigger_elementalFireFade = "Elemental Fire fades from (.+).", --CHAT_MSG_SPELL_AURA_GONE_SELF // CHAT_MSG_SPELL_AURA_GONE_PARTY // CHAT_MSG_SPELL_AURA_GONE_OTHERà
+	trigger_elementalFireFade = "Elemental Fire fades from (.+).", --CHAT_MSG_SPELL_AURA_GONE_SELF // CHAT_MSG_SPELL_AURA_GONE_PARTY // CHAT_MSG_SPELL_AURA_GONE_OTHER
 	bar_elementalFire = "%s - Elemental Fire",
-	say_elementalFire = "Get away from me - Elemental Fire!",
-	msg_elementalFire = "Elemental Fire on %s - move away from them!",
-	msg_elementalFireYou = "Elemental Fire on YOU - get away from others!",
-	warn_elementalFire = "Damage Aura!",
+	
+	trigger_hitCrit = "Ragnaros .-its (.+) for",
+	trigger_miss = "Ragnaros misses (.+)%.",
+	trigger_dodgeParry = "Ragnaros attacks. (.+) .-%.$",
+	msg_newTank = "%s is tanking",
+	msg_youTank = "YOU are tanking",
+	
+	trigger_wrathHit = "Wrath of Ragnaros hits (.+) for",
+	trigger_wrathResist = "Wrath of Ragnaros was resisted by (.+)%.",
+	trigger_wrathResistYou = "Wrath of Ragnaros was resisted%.",
+	msg_tankWrathHit = "Knockback on Tank! %s is flying.",
+	msg_tankWrathResist = "Resisted Knockback. %s still tanking.",
 } end)
 
 local timer = {
@@ -144,6 +167,10 @@ local syncName = {
 	
 	elementalFire = "RagnarosElementalFire"..module.revision,
 	elementalFireFade = "RagnarosElementalFireFade"..module.revision,
+	
+	newTank = "RagnarosNewTank"..module.revision,
+	tankWrathHit = "RagnarosTankWrathHit"..module.revision,
+	tankWrathResist = "RagnarosTankWrathResist"..module.revision,
 }
 
 local addDead = 0
@@ -161,6 +188,8 @@ local phase = nil
 local lastKnockTime = 0
 local submergeTime = 0
 
+local knownTank = nil
+
 function module:OnRegister()
 	self:RegisterEvent("MINIMAP_ZONE_CHANGED")
 end
@@ -172,7 +201,9 @@ function module:OnEnable()
 	
 	self:RegisterEvent("CHAT_MSG_COMBAT_SELF_HITS", "Event") --trigger_lavaYou
 	
-	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", "Event") --trigger_meltWeapon
+	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", "SpellHitEvent") --trigger_meltWeapon, trigger_wrathHit, trigger_wrathResistYou
+	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_PARTY_DAMAGE", "SpellHitEvent") --trigger_wrathHit, trigger_wrathResist
+	self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE", "SpellHitEvent") --trigger_wrathHit, trigger_wrathResist
 	
 	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE", "Event") --trigger_elementalFireYou
 	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_PARTY_DAMAGE", "Event") --trigger_elementalFireOther
@@ -182,6 +213,13 @@ function module:OnEnable()
 	self:RegisterEvent("CHAT_MSG_SPELL_AURA_GONE_PARTY", "Event") --trigger_elementalFireFade
 	self:RegisterEvent("CHAT_MSG_SPELL_AURA_GONE_OTHER", "Event") --trigger_elementalFireFade
 	
+	self:RegisterEvent("CHAT_MSG_COMBAT_CREATURE_VS_SELF_HITS", "MeleeHitEvent") 
+	self:RegisterEvent("CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES", "MeleeHitEvent")
+	self:RegisterEvent("CHAT_MSG_COMBAT_CREATURE_VS_PARTY_HITS", "MeleeHitEvent")
+	self:RegisterEvent("CHAT_MSG_COMBAT_CREATURE_VS_PARTY_MISSES", "MeleeHitEvent")
+	self:RegisterEvent("CHAT_MSG_COMBAT_CREATURE_VS_CREATURE_HITS", "MeleeHitEvent") --non-party raid members
+	self:RegisterEvent("CHAT_MSG_COMBAT_CREATURE_VS_CREATURE_MISSES", "MeleeHitEvent") --non-party raid members
+	
 	
 	self:ThrottleSync(5, syncName.knockback)
 	self:ThrottleSync(5, syncName.submerge)
@@ -189,6 +227,9 @@ function module:OnEnable()
 	self:ThrottleSync(0.5, syncName.addDead)
 	self:ThrottleSync(1, syncName.elementalFire)
 	self:ThrottleSync(0.1, syncName.elementalFireFade)
+	self:ThrottleSync(1, syncName.newTank)
+	self:ThrottleSync(5, syncName.tankWrathHit)
+	self:ThrottleSync(5, syncName.tankWrathResist)
 end
 
 function module:OnSetup()
@@ -214,9 +255,12 @@ function module:OnEngage()
 	
 	lastKnockTime = 0
 	submergeTime = 0
+	
+	knownTank = nil
 end
 
 function module:OnDisengage()
+	self:ClearKnownTank()
 end
 
 function module:MINIMAP_ZONE_CHANGED(msg)
@@ -279,17 +323,11 @@ end
 
 function module:Event(msg)
 	if string.find(msg, L["trigger_lavaYou"]) and self.db.profile.lava then
-		self:LavaYou()
-		
-	elseif string.find(msg, L["trigger_meltWeapon"]) and self.db.profile.melt then
-		local _,_, meltWeapon, _ = string.find(msg, L["trigger_meltWeapon"])
-		self:MeltWeapon(meltWeapon)
-		
-		
+		self:LavaYou()		
+	
 	elseif msg == L["trigger_elementalFireYou"] then
 		local elementalFirePerson = UnitName("Player")
 		self:Sync(syncName.elementalFire .. " " .. elementalFirePerson)
-		self:ElementalFire(elementalFirePerson) -- let's not miss a sync
 	
 	elseif string.find(msg, L["trigger_elementalFireOther"]) then
 		local _,_, elementalFirePerson, _ = string.find(msg, L["trigger_elementalFireOther"])
@@ -303,6 +341,57 @@ function module:Event(msg)
 end
 
 
+function module:SpellHitEvent(msg)
+	if string.find(msg, L["trigger_meltWeapon"]) and self.db.profile.melt then
+		local _,_, meltWeapon, _ = string.find(msg, L["trigger_meltWeapon"])
+		self:MeltWeapon(meltWeapon)
+		return
+	end
+
+	local _,_, wrathHitPerson = string.find(msg, L["trigger_wrathHit"])
+	if wrathHitPerson then
+		if wrathHitPerson == "you" then wrathHitPerson = UnitName("Player") end
+		if wrathHitPerson == knownTank then
+			self:Sync(syncName.tankWrathHit .. " " .. wrathHitPerson)
+		end
+		return
+	end
+
+	local _,_, wrathResistPerson = string.find(msg, L["trigger_wrathResist"])
+	if wrathResistPerson and wrathResistPerson == knownTank then
+		self:Sync(syncName.tankWrathResist .. " " .. wrathResistPerson)
+		return
+	end
+
+	if string.find(msg, L["trigger_wrathResistYou"]) and knownTank == UnitName("Player") then
+		self:Sync(syncName.tankWrathResist .. " " .. UnitName("Player"))
+		return
+	end
+end
+
+
+function module:MeleeHitEvent(msg)
+	local victim = "none"
+
+	local _,_, player = string.find(msg, L["trigger_hitCrit"])
+	victim = player or victim
+
+	local _,_, player = string.find(msg, L["trigger_miss"])
+	victim = player or victim
+
+	local _,_, player = string.find(msg, L["trigger_dodgeParry"])
+	victim = player or victim
+
+	if victim ~= "none" then
+		if string.lower(victim) == "you" then victim = UnitName("Player") end
+
+		if victim ~= knownTank then
+			self:Sync(syncName.newTank .. " " .. victim)
+		end
+	end
+end
+
+
 function module:BigWigs_RecvSync(sync, rest, nick)
 	if sync == syncName.knockback and self.db.profile.wrathofragnaros then
 		self:Knockback()
@@ -311,13 +400,20 @@ function module:BigWigs_RecvSync(sync, rest, nick)
 		self:Submerge()
 	elseif sync == syncName.emerge then
 		self:Emerge()
-	elseif sync == syncName.addDead and rest and self.db.profile.adds then
+	elseif sync == syncName.addDead and rest then
 		self:AddDead(rest)
 		
-	elseif sync == syncName.elementalFire and rest and rest ~= UnitName("player") then
+	elseif sync == syncName.elementalFire and rest then
 		self:ElementalFire(rest)
 	elseif sync == syncName.elementalFireFade and rest then
 		self:ElementalFireFade(rest)
+		
+	elseif sync == syncName.newTank and rest then
+		self:NewTank(rest)
+	elseif sync == syncName.tankWrathHit and rest then
+		self:TankKnockbackHit(rest)
+	elseif sync == syncName.tankWrathResist and rest then
+		self:TankKnockbackResist(rest)
 	end
 end
 
@@ -369,7 +465,8 @@ end
 
 function module:Submerge()
 	phase = "submerged"
-	
+	self:ClearKnownTank()
+
 		--knockback stuff
 	self:RemoveBar(L["bar_knockbackCd"])
 	self:CancelDelayedBar(L["bar_knockbackSoon"])
@@ -378,7 +475,7 @@ function module:Submerge()
 	self:RemoveWarningSign(icon.knockback)
 	self:CancelDelayedMessage(L["msg_knockbackSoon"])
 	self:CancelDelayedSound("RunAway")
-	
+
 	submergeTime = GetTime()
 
 	if self.db.profile.emerge then
@@ -387,7 +484,7 @@ function module:Submerge()
 		self:Bar(L["bar_nextEmerge"], timer.nextEmerge, icon.emerge, true, color.emerge)
 		self:DelayedMessage(timer.nextEmerge - 10, L["msg_emergeSoon"], "Attention", false, nil, false)
 	end
-	
+
 	self:ScheduleRepeatingEvent("CheckForEmerge", self.CheckForEmerge, 1, self)
 end
 
@@ -461,7 +558,9 @@ function module:LavaYou()
 end
 
 function module:AddDead(rest)
-	self:Message(rest..L["msg_addDead"], "Positive", false, nil, false)
+	if self.db.profile.adds then
+		self:Message(rest..L["msg_addDead"], "Positive", false, nil, false)
+	end
 	
 	if tonumber(rest) == 10 and phase == "submerged" then
 		self:Sync(syncName.emerge)
@@ -496,71 +595,116 @@ function module:MeltWeapon(rest)
 end
 
 function module:ElementalFire(player)
-	if player == UnitName("player") then
-		-- Don't spam tanks; infer tank status from FR >= 200
-		local _, FR = UnitResistance("player",2)
-		if self.db.profile.elementalfire and FR < 200 then
-			self:WarningSign(icon.elementalFire, 2, true, L["warn_elementalFire"])
-			self:Message(L["msg_elementalFireYou"], "Important")
-			self:Sound("Beware")
-		end
-		if self.db.profile.elementalfiresay then
-			SendChatMessage(L["say_elementalFire"], "SAY")
-		end
-	elseif self.db.profile.elementalfire then
-		self:Message(string.format(L["msg_elementalFire"], player), "Urgent")
-	end
 	if self.db.profile.elementalfire then
 		self:Bar(string.format(L["bar_elementalFire"], player), timer.elementalFire, icon.elementalFire, true, color.elementalFire)
-	end
-	if self.db.profile.elementalfiremark then
-		local markToUse = self:GetAvailableRaidMark()
-		if markToUse then
-			self:SetRaidTargetForPlayer(player, markToUse)
-		end
 	end
 end
 
 function module:ElementalFireFade(player)
 	self:RemoveBar(string.format(L["bar_elementalFire"], player))
-	if self.db.profile.elementalfiremark then
-		self:RestorePreviousRaidTargetForPlayer(player)
-	end
 end
 
 function module:OnFriendlyDeath(msg)
-	-- Remove bar and raid marker when a player dies
 	local _, _, player = string.find(msg, "(.+) die")
 	if player then
 		if player == "You" then player = UnitName("player") end
+
+		-- remove Elemental Fire bar when a player dies
 		self:ElementalFireFade(player)
+
+		-- clear mark and variable if tank dies
+		if player == knownTank then
+			self:ClearKnownTank()
+		end
 	end
 end
 
-function module:Test() --Only for Elemental Fire for now!
+function module:NewTank(newTank)
+	-- sanity check in case remote player has a different knownTank
+	if newTank == knownTank then return end
+
+	if self.db.profile.tankalert then
+		if newTank == UnitName("player") then
+			-- infer whether player is a tank from fire resist
+			local _, FR = UnitResistance("player",2)
+
+			if FR < 200 then -- warn for aggro pull
+				self:Message(L["msg_youTank"], "Important", true, "Beware")
+			else -- player is tanking
+				self:Message(L["msg_youTank"], "Positive", true, "Long")		
+			end
+		else
+			self:Message(string.format(L["msg_newTank"], newTank), "Attention", true, "Alarm")
+		end
+	end
+
+	self:ClearKnownTank()
+	knownTank = newTank
+
+	if self.db.profile.tankmark then
+		self:SetRaidTargetForPlayer(newTank, 8)
+	end
+end
+
+function module:ClearKnownTank()
+	if self.db.profile.tankmark and knownTank then
+		self:RestorePreviousRaidTargetForPlayer(knownTank)
+	end
+
+	knownTank = nil
+end
+
+function module:TankKnockbackHit(player)
+	-- sanity check in case remote player has a different knownTank
+	if player ~= knownTank then return end
+
+	if self.db.profile.tankwrathhit then
+		self:Message(string.format(L["msg_tankWrathHit"], knownTank), "Urgent", true, "Beware")
+	end
+
+	self:ClearKnownTank()
+end
+
+function module:TankKnockbackResist(player)
+	-- sanity check in case remote player has a different knownTank
+	if player ~= knownTank then return end
+
+	if self.db.profile.tankwrathresist then
+		self:Message(string.format(L["msg_tankWrathResist"], knownTank), "Positive", true, "Long")
+	end
+end
+
+function module:Test() --only for new additions, no legacy tests
 	-- Initialize module state
 	self:Engage()
+	
+	-- determine order of test sequences
+	local eleLength = 26
+	local tankLength = 24
+	local eleOffset = tankLength -- Elemental Fire
+	local tankOffset = 2 -- Tank Swaps & Knockback
 
 	local events = {
+		--ELEMENTAL FIRE TESTS
 		-- Self Test
 		-- Gain and fade
-		{ time = 2, func = function()
+		{ time = eleOffset + 0, func = function()
 			local msg = "You are afflicted by Elemental Fire."
 			print("Test: " .. msg)
 			module:TriggerEvent("CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE", msg)
 		end },
-		{ time = 10, func = function()
+		{ time = eleOffset + 8, func = function()
 			local msg = "Elemental Fire fades from you."
 			print("Test: " .. msg)
 			module:TriggerEvent("CHAT_MSG_SPELL_AURA_GONE_SELF", msg)
 		end },
 		-- Gain and die
-		{ time = 12, func = function()
+		{ time = eleOffset + 10, func = function()
 			local msg = "You are afflicted by Elemental Fire."
 			print("Test: " .. msg)
 			module:TriggerEvent("CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE", msg)
 		end },
-		{ time = 14, func = function()
+		{ time = eleOffset + 12, func = function()
 			local msg = "You die."
 			print("Test: " .. msg)
 			module:OnFriendlyDeath(msg)
@@ -568,33 +712,110 @@ function module:Test() --Only for Elemental Fire for now!
 
 		-- Raid Member Test
 		-- Gain and fade
-		{ time = 18, func = function()
+		{ time = eleOffset + 16, func = function()
 			local name = UnitName("raid1") or "raid1"
 			local msg = name.." is afflicted by Elemental Fire."
 			print("Test: " .. msg)
 			module:TriggerEvent("CHAT_MSG_SPELL_PERIODIC_PARTY_DAMAGE", msg)
 		end },
-		{ time = 20, func = function()
+		{ time = eleOffset + 18, func = function()
 			local name = UnitName("raid2") or "raid2"
 			local msg = name.." is afflicted by Elemental Fire."
 			print("Test: " .. msg)
 			module:TriggerEvent("CHAT_MSG_SPELL_PERIODIC_FRIENDLYPLAYER_DAMAGE", msg)
 		end },
-		{ time = 24, func = function()
+		{ time = eleOffset + 22, func = function()
 			local name = UnitName("raid1") or "raid1"
 			local msg = "Elemental Fire fades from "..name.."."
 			print("Test: " .. msg)
 			module:TriggerEvent("CHAT_MSG_SPELL_AURA_GONE_PARTY", msg)
 		end },
-		{ time = 26, func = function()
+		{ time = eleOffset + 24, func = function()
 			local name = UnitName("raid2") or "raid2"
 			local msg = name.." dies."
 			print("Test: " .. msg)
 			module:OnFriendlyDeath(msg)
 		end },
 
-		-- End of Test
-		{ time = 28, func = function()
+		-- TANK TESTS
+		-- Hits
+		{ time = tankOffset + 0, func = function()
+			local msg = "Ragnaros hits you for 663. (93 blocked)"
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_COMBAT_CREATURE_VS_SELF_HITS", msg)
+		end },
+		{ time = tankOffset + 2, func = function()
+			local name = UnitName("raid1") or "raid1"
+			local msg = "Ragnaros crits "..name.." for 1526."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_COMBAT_CREATURE_VS_PARTY_HITS", msg)
+		end },
+		{ time = tankOffset + 4, func = function()
+			local name = UnitName("raid2") or "raid2"
+			local msg = "Ragnaros hits "..name.." for 1038. (crushing)"
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_COMBAT_CREATURE_VS_CREATURE_HITS", msg)
+		end },
+		-- Misses
+		{ time = tankOffset + 6, func = function()
+			local msg = "Ragnaros misses you."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES", msg)
+		end },
+		{ time = tankOffset + 8, func = function()
+			local name = UnitName("raid1") or "raid1"
+			local msg = "Ragnaros misses "..name.."."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_COMBAT_CREATURE_VS_PARTY_MISSES", msg)
+		end },
+		{ time = tankOffset + 10, func = function()
+			local name = UnitName("raid2") or "raid2"
+			local msg = "Ragnaros attacks. "..name.." dodges."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_COMBAT_CREATURE_VS_CREATURE_MISSES", msg)
+		end },
+		{ time = tankOffset + 12, func = function()
+			local msg = "Ragnaros attacks. You parry."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_COMBAT_CREATURE_VS_SELF_MISSES", msg)
+		end },
+		{ time = tankOffset + 14, func = function()
+			local msg = "Ragnaros hits you for 663. (93 blocked)"
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_COMBAT_CREATURE_VS_SELF_HITS", msg)
+		end },
+		{ time = tankOffset + 16, func = function()
+			local name = UnitName("raid2") or "raid2"
+			local msg = "Ragnaros attacks. "..name.." parries."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_COMBAT_CREATURE_VS_CREATURE_MISSES", msg)
+		end },
+		-- Knockback
+		{ time = tankOffset + 12.5, func = function()
+			local msg = "Ragnaros's Wrath of Ragnaros was resisted."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", msg)
+		end },
+		{ time = tankOffset + 15.5, func = function()
+			local msg = "Ragnaros's Wrath of Ragnaros hits you for 829 Fire damage."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE", msg)
+		end },
+		{ time = tankOffset + 18.5, func = function()
+			local name = UnitName("raid2") or "raid2"
+			local msg = "Ragnaros's Wrath of Ragnaros was resisted by "..name.."."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE", msg)
+		end },
+		{ time = tankOffset + 23, func = function()
+			local name = UnitName("raid2") or "raid2"
+			local msg = "Ragnaros's Wrath of Ragnaros hits "..name.." for 829 Fire damage."
+			print("Test: " .. msg)
+			module:TriggerEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE", msg)
+		end },
+
+		-- END OF TEST
+		{ time = eleLength + tankLength + 4, func = function()
 			print("Test: Disengage")
 			module:Disengage()
 		end },
