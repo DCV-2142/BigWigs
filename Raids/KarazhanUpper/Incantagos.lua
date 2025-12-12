@@ -148,7 +148,8 @@ L:RegisterTranslations("enUS", function()
 		trigger_surgeFade = "Surge of Mana fades from (.+)%.",
 		trigger_surgeDeath = "(.+) die",
 		msg_surgeYou = "Surge of Mana on YOU!",
-		msg_surge = "Surge on %s >Click Me!<",
+		msg_surge = "Surge on %s",
+		bar_surge = "Surge on %s >Click Me!<",
 		warn_surge = "SURGE OF MANA",
 		yell_surge = "Help me! (Surge of Mana)",
 
@@ -428,7 +429,7 @@ function module:FadeEvent(msg)
 	local _, _, player = string.find(msg, L["trigger_surgeFade"])
 	if player then
 		player = player == "you" and UnitName("player") or player
-		self:RemoveBar(string.format(L["msg_surge"], player))
+		self:RemoveBar(string.format(L["bar_surge"], player))
 	end
 end
 
@@ -436,7 +437,7 @@ function module:OnFriendlyDeath(msg)
 	local _, _, player = string.find(msg, L["trigger_surgeDeath"])
 	if player then
 		player = player == "You" and UnitName("player") or player
-		self:RemoveBar(string.format(L["msg_surge"], player))
+		self:RemoveBar(string.format(L["bar_surge"], player))
 	end
 end
 
@@ -581,7 +582,7 @@ end
 
 function module:SurgeBar(player)
 	if self.db.profile.surgewarning then
-		local barText = string.format(L["msg_surge"], player)
+		local barText = string.format(L["bar_surge"], player)
 		self:Bar(barText, timer.surge, icon.surge, true, "Cyan")
 		
 		-- Set the bar to target player and cast Hand of Freedom
