@@ -24,8 +24,8 @@ module.toggleoptions = {
 	"bosskill"
 }
 module.defaultDB = {
-	mapX = 600,
-	mapY = 400,
+	mapX = 200,
+	mapY = -200,
 	mapAlpha = 1,
 	mapScale = 1,
 	autotarget = false,
@@ -889,38 +889,52 @@ end
 
 function GetCthunCoords(unit)
 	local posX, posY = GetPlayerMapPosition(unit)
+	if not posX or not posY or (posX == 0 and posY == 0) then
+		return nil, nil
+	end
 	posX = (18.25 * posX - 5.55) * cthunmap.map:GetWidth()
 	posY = (-12.1666666667 * posY + 5.5) * cthunmap.map:GetHeight()
 	return posX, posY
 end
 
 function UpdateCthunMap()
-	if not cthunmap.map then
+	SetMapToCurrentZone()
+	if not cthunmap.map or cthunmap.map:GetWidth() == 0 or cthunmap.map:GetHeight() == 0 then
 		return
-	end
+    end
+
 	local tooltipText = ""
 	local tooltipAnchor
+
 	for i = 1, 40 do
+        local unitFrame = cthunmap.map.unit[i]
 		local coordX, coordY = GetCthunCoords("raid" .. i)
-		if coordX == 0 and coordY == 0 then
-			cthunmap.map.unit[i]:Hide()
+
+		if not coordX or not coordY then
+            unitFrame:Hide()
 		else
-			cthunmap.map.unit[i]:Show()
-			cthunmap.map.unit[i]:SetPoint("CENTER", cthunmap.map, "TOPLEFT", coordX, coordY)
+            unitFrame:Show()
+            unitFrame:ClearAllPoints()
+			unitFrame:SetPoint("CENTER", cthunmap.map, "TOPLEFT", coordX, -coordY)
 			CthunMapUnitIcon(i)
-			if MouseIsOver(cthunmap.map.unit[i]) and GetRaidRosterInfo(i) ~= UnitName("player") then
+
+            -- Tooltip (safe outside raid)
+            local name = GetRaidRosterInfo(i)
+            if MouseIsOver(unitFrame) and name and name ~= UnitName("player") then
 				if GetRaidTargetIndex("raid" .. i) then
-					tooltipText = tooltipText .. GetRaidRosterInfo(i) .. SpellstatusV2IndexToIcon[GetRaidTargetIndex("raid" .. i)] .. "\n"
+                    tooltipText = tooltipText .. name ..
+						SpellstatusV2IndexToIcon[GetRaidTargetIndex("raid" .. i)] .. "\n"
 				else
-					tooltipText = tooltipText .. GetRaidRosterInfo(i) .. "\n"
+					tooltipText = tooltipText .. name .. "\n"
 				end
-				tooltipAnchor = cthunmap.map.unit[i]
+				tooltipAnchor = unitFrame
 			end
 		end
 	end
+
 	if tooltipText ~= "" then
 		cthunmap.tooltip:Show()
-		cthunmap.tooltip:SetOwner(tooltipAnchor, "ANCHOR_RIGHT");
+		cthunmap.tooltip:SetOwner(tooltipAnchor, "ANCHOR_RIGHT")
 		cthunmap.tooltip:SetText(tooltipText)
 	else
 		cthunmap.tooltip:Hide()
@@ -952,6 +966,21 @@ function module:SetupMap()
 	cthunmap:SetWidth(200)
 	cthunmap:SetHeight(32)
 
+    -- Clamp saved map position BEFORE anchoring
+    local uiW, uiH = UIParent:GetWidth(), UIParent:GetHeight()
+    local w, h = cthunmap:GetWidth(), cthunmap:GetHeight()
+
+    local x = self.db.profile.mapX or 200
+    local y = self.db.profile.mapY or -200
+
+    if x < 0 then x = 0 end
+    if x > uiW - w then x = uiW - w end
+    if y > 0 then y = 0 end
+    if y < -uiH + h then y = -uiH + h end
+
+    self.db.profile.mapX = x
+    self.db.profile.mapY = y
+
 	cthunmap:SetBackdrop({
 		-- bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", tile = true, tileSize = 16,
 		edgeFile = "Interface\\Addons\\BigWigs\\Textures\\otravi-semi-full-border", edgeSize = 32,
@@ -961,7 +990,7 @@ function module:SetupMap()
 	cthunmap:SetBackdropBorderColor(1.0, 1.0, 1.0)
 	cthunmap:SetBackdropColor(24 / 255, 24 / 255, 24 / 255)
 	cthunmap:ClearAllPoints()
-	cthunmap:SetPoint("TOPLEFT", nil, "BOTTOMLEFT", self.db.profile.mapX, self.db.profile.mapY)
+	cthunmap:SetPoint("TOPLEFT", nil, "TOPLEFT", self.db.profile.mapX, self.db.profile.mapY)
 	cthunmap:EnableMouse(true)
 	cthunmap:SetClampedToScreen(true)
 	cthunmap:RegisterForDrag("LeftButton")
@@ -1061,4 +1090,21 @@ function module:SetupMap()
 		--		cthunmap.map.unit[i]:SetScript("OnLeave", function() GameTooltip:Hide(); DEFAULT_CHAT_FRAME:AddMessage("leave hover") end )
 		CthunMapUnitIcon(i)
 	end
+end
+
+-- Adds a command that forces the C'Thun map to appear. This can be used to test the map and save its settings outside of the raid.
+SLASH_CTHUNMAPSHOW1 = "/cthunmapshow"
+SlashCmdList["CTHUNMAPSHOW"] = function()
+    local mod = BigWigs:GetModule("C'Thun", true)
+    if not mod then
+        DEFAULT_CHAT_FRAME:AddMessage("C'Thun module not loaded.")
+        return
+    end
+
+    if not cthunmap then
+        mod:SetupMap()
+    end
+
+    cthunmap:Show()
+    DEFAULT_CHAT_FRAME:AddMessage("C'Thun map forced visible.")
 end
