@@ -1092,3 +1092,34 @@ function module:BloodTap(rest)
 		self:Bar(L["bar_bloodTapA"] .. bloodTapCounter .. L["bar_bloodTapB"], timer.bloodTap, icon.bloodTap, true, color.bloodTap)
 	end
 end
+
+
+-- Slash command: show Frost Blast frame manually. Use this to test the frame's position outside of Naxx.
+SLASH_KTFROSTBLAST1 = "/ktfrostblast"
+
+SlashCmdList["KTFROSTBLAST"] = function(msg)
+	if not BigWigsFrostBlast then
+		DEFAULT_CHAT_FRAME:AddMessage("BigWigs Frost Blast module not loaded.")
+		return
+	end
+
+	BigWigsFrostBlast:FBShow()
+
+	local added = 0
+	local playerName = UnitName("player")
+
+	-- Always add yourself first
+	BigWigsFrostBlast:AddFrostBlastTarget(playerName)
+	added = 1
+
+	-- Add up to 4 more raid members (for a total of 5)
+	for i = 1, GetNumRaidMembers() do
+		if added >= 5 then break end
+
+		local name = UnitName("raid" .. i)
+		if name and name ~= playerName then
+			BigWigsFrostBlast:AddFrostBlastTarget(name)
+			added = added + 1
+		end
+	end
+end
