@@ -1,25 +1,27 @@
 local module, L = BigWigs:ModuleDeclaration("Keeper Gnarlmoon", "Karazhan")
 
 -- module variables
-module.revision = 30000 -- To be updated
+module.revision = 30001
 module.enabletrigger = module.translatedName
-module.toggleoptions = { "lunarshift", "ravens", "ravensbar", "owlphase", "owlenrage", "moondebuff", "bloodboil", "owlhpframe", "bosskill" }
+module.toggleoptions = { "moondebuff", "lunarshift", "ravens", "ravensbar", "bloodboil", -1, "owlphase", "owlenrage", "owlhpframe", "owlgaze", -1, "printkeeper", "bosskill" }
 module.zonename = {
 	AceLibrary("AceLocale-2.2"):new("BigWigs")["Tower of Karazhan"],
 	AceLibrary("Babble-Zone-2.2")["Tower of Karazhan"],
 }
 -- module defaults
 module.defaultDB = {
+	moondebuff = true,
 	lunarshift = true,
 	ravens = true,
-	ravensbar = false,
+  ravensbar = true,
+	bloodboil = true,
 	owlphase = true,
 	owlenrage = true,
-	moondebuff = true,
-	bloodboil = true,
 	owlhpframe = true,
 	owlframeposx = 100,
 	owlframeposy = 400,
+	owlgaze = true,
+	printkeeper = false,
 }
 
 -- localization
@@ -27,9 +29,21 @@ L:RegisterTranslations("enUS", function()
 	return {
 		cmd = "Gnarlmoon",
 
+		moondebuff_cmd = "moondebuff",
+		moondebuff_name = "Moon Debuff Alert",
+		moondebuff_desc = "Warns when you get Red Moon or Blue Moon",
+
 		lunarshift_cmd = "lunarshift",
 		lunarshift_name = "Lunar Shift Alert",
 		lunarshift_desc = "Warns when Keeper Gnarlmoon begins to cast Lunar Shift",
+
+		ravens_cmd = "ravens",
+		ravens_name = "Raven Alert",
+		ravens_desc = "Alerts a few seconds before 12 Blood Ravens will appear (requires someone with SuperWoW in the raid)",
+
+		ravensbar_cmd = "ravensbar",
+		ravensbar_name = "Raven timer bar",
+		ravensbar_desc = "Shows a timer bar for Flock of Ravens (requires someone with SuperWoW in the raid)",
 
 		bloodboil_cmd = "bloodboil",
 		bloodboil_name = "Blood Boil Alert",
@@ -37,19 +51,24 @@ L:RegisterTranslations("enUS", function()
 
 		owlphase_cmd = "owlphase",
 		owlphase_name = "Owl Phase Alert",
-		owlphase_desc = "Warns when Keeper Gnarlmoon enters and exits the Owl Dimension phase",
+		owlphase_desc = "Warns about timing of the Owl phase",
 
 		owlenrage_cmd = "owlenrage",
 		owlenrage_name = "Owl Enrage Alert",
 		owlenrage_desc = "Warns when the Owls are about to enrage",
 
-		moondebuff_cmd = "moondebuff",
-		moondebuff_name = "Moon Debuff Alert",
-		moondebuff_desc = "Warns when you get affected by Red Moon or Blue Moon",
-
 		owlhpframe_cmd = "owlhpframe",
 		owlhpframe_name = "Owl HP Frame",
 		owlhpframe_desc = "Shows a frame with the owl HP during owl phases",
+
+		owlgaze_cmd = "owlgaze",
+		owlgaze_name = "Owl Gaze Alert",
+		owlgaze_desc = "Warns when Owl Gaze is about to swap your Moon color",
+
+		printkeeper_cmd = "printkeeper",
+		printkeeper_name = "Troubleshoot Info",
+		printkeeper_desc = "Print information to your main chat window: Owl kill time stamps",
+
 
 		lowRedOwl = "Low Red Owl",
 		lowBlueOwl = "Low Blue Owl",
@@ -61,20 +80,14 @@ L:RegisterTranslations("enUS", function()
 		bar_lunarShiftCD = "Next Lunar Shift",
 		msg_lunarShift = "Lunar Shift casting!",
 
-		ravens_cmd = "ravens",
-		ravens_name = "Raven alert",
-		ravens_desc = "Warns when 12 Blood Ravens will appear",
 		msg_ravensSoon = "12 ravens incoming",
-
-		ravensbar_cmd = "ravensbar",
-		ravensbar_name = "Raven timer bar",
-		ravensbar_desc = "Shows a timer bar for Flock of Ravens",
 		bar_ravens = "Flock of Ravens",
 
 		msg_midHp = "Keeper Gnarlmoon < 71% - Owls Soon (@ 66%)!",
 		msg_lowHp = "Keeper Gnarlmoon < 38% - Owls Soon (@ 33%)!",
 
 		trigger_owlPhaseStart = "Keeper Gnarlmoon gains Worgen Dimension",
+		trigger_owlKill = "Owl dies.", --CHAT_MSG_COMBAT_HOSTILE_DEATH
 		trigger_owlPhaseEnd = "Worgen Dimension fades from Keeper Gnarlmoon",
 		msg_owlPhaseStart = "Owl Phase begins - kill the owls at the same time within 1 min!",
 		msg_owlPhaseEnd = "Owl Phase ended!",
@@ -83,10 +96,17 @@ L:RegisterTranslations("enUS", function()
 		msg_owlEnrage = "Owls will enrage in 10 seconds!",
 		msg_owlsEnraged = "Owls Enraged!",
 
+		trigger_owlGaze = "You are afflicted by Owl Gaze", --CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE
+		bar_owlGaze = "Color Change!",
+		msg_owlGaze = "Imminent color change - swap sides!",
+		warn_owlGaze = "OWL GAZE",
+
 		trigger_redMoon = "afflicted by Red Moon",
 		trigger_blueMoon = "afflicted by Blue Moon",
 		msg_redMoon = "You have RED MOON!",
 		msg_blueMoon = "You have BLUE MOON!",
+		warn_redMoon = "<-- RED",
+		warn_blueMoon = "BLUE -->",
 
 		trigger_bloodBoil = "Keeper Gnarlmoon's Blood Boil hits",
 		bar_bloodBoil = "Next Blood Boil",
@@ -97,8 +117,9 @@ end)
 local timer = {
 	lunarShiftCast = 5,
 	lunarShiftCD = 30,
-	owlPhase = 67, -- approximately based on logs
 	owlEnrage = 60,
+	owlKill = 10,
+	owlGaze = 2.5,
 	ravenSummon = { 15, 35 },
 	bloodBoil = 11,
 }
@@ -107,6 +128,7 @@ local icon = {
 	lunarShift = "Spell_Nature_StarFall",
 	owlPhase = "Ability_EyeOfTheOwl",
 	owlEnrage = "Spell_Shadow_UnholyFrenzy",
+	owlGaze = "Ability_EyeOfTheOwl",
 	redMoon = "inv_misc_orb_05",
 	blueMoon = "inv_ore_arcanite_02",
 	bloodBoil = "Spell_Shadow_BloodBoil",
@@ -124,6 +146,7 @@ local color = {
 local syncName = {
 	lunarShift = "GnarlmoonLunarShift" .. module.revision,
 	owlPhaseStart = "GnarlmoonOwlStart" .. module.revision,
+	owlKill = "GnarlmoonOwlKill" .. module.revision,
 	owlPhaseEnd = "GnarlmoonOwlEnd" .. module.revision,
 	bloodBoil = "GnarlmoonBloodBoil" .. module.revision,
 	ravens = "GnarlmoonRavens" .. module.revision,
@@ -135,8 +158,6 @@ local spellIds = {
 
 function module:OnSetup()
 	self.started = nil
-	self.phase = nil
-	self.owlPhaseCount = 0
 
 	-- Used to monitor when owl phase will begin
 	self.lowHp = nil
@@ -161,6 +182,7 @@ function module:OnEnable()
 
 	self:ThrottleSync(3, syncName.lunarShift)
 	self:ThrottleSync(5, syncName.owlPhaseStart)
+	self:ThrottleSync(25, syncName.owlKill) --only check 1 owl kill per phase
 	self:ThrottleSync(5, syncName.owlPhaseEnd)
 	self:ThrottleSync(5, syncName.bloodBoil)
 	self:ThrottleSync(5, syncName.ravens)
@@ -183,9 +205,6 @@ function module:OnEnable()
 end
 
 function module:OnEngage()
-	self.phase = 1
-	self.owlPhaseCount = 0
-
 	if self.owlStatusFrame then
 		self.owlStatusFrame:Hide()
 	end
@@ -210,9 +229,7 @@ function module:OnEngage()
 		self:DelayedMessage(timer.ravenSummon[1] - 5, L["msg_ravensSoon"], "Important", false, nil, false)
 	end
 
-	if self.db.profile.owlphase then
-		self:ScheduleRepeatingEvent("CheckHps", self.CheckHps, 1, self)
-	end
+	self:ScheduleRepeatingEvent("CheckHps", self.CheckHps, 1, self)
 end
 
 function module:OnDisengage()
@@ -236,6 +253,15 @@ function module:CHAT_MSG_SPELL_PERIODIC_CREATURE_BUFFS(msg)
 	end
 end
 
+function module:OnEnemyDeath(msg)
+	if string.find(msg, L["trigger_owlKill"]) then
+		self:Sync(syncName.owlKill)
+		if self.db.profile.printkeeper then
+			print(msg)
+		end
+	end
+end
+
 function module:CHAT_MSG_SPELL_AURA_GONE_OTHER(msg)
 	if string.find(msg, L["trigger_owlPhaseEnd"]) then
 		self:Sync(syncName.owlPhaseEnd)
@@ -246,16 +272,23 @@ function module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE(msg)
 	if self.db.profile.moondebuff then
 		if string.find(msg, L["trigger_redMoon"]) then
 			self:Message(L["msg_redMoon"], "Important", true, "Alarm")
-			self:WarningSign(icon.redMoon, 5, true, "RED")
+			self:WarningSign(icon.redMoon, 5, true, L["warn_redMoon"])
 		elseif string.find(msg, L["trigger_blueMoon"]) then
 			self:Message(L["msg_blueMoon"], "Important", true, "Alert")
-			self:WarningSign(icon.blueMoon, 5, "BLUE")
+			self:WarningSign(icon.blueMoon, 5, true, L["warn_blueMoon"])
+		end
+	end
+	if self.db.profile.owlgaze then
+		if string.find(msg, L["trigger_owlGaze"]) then
+			self:Message(L["msg_owlGaze"], "Important", true, "Beware")
+			self:Bar(L["bar_owlGaze"], timer.owlGaze, icon.owlGaze, false)
+			self:WarningSign(icon.owlGaze, timer.owlGaze, false, L["warn_owlGaze"])
 		end
 	end
 end
 
 function module:CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE(msg)
-	if self.db.profile.bloodboil and string.find(msg, L["trigger_bloodBoil"]) then
+	if string.find(msg, L["trigger_bloodBoil"]) then
 		self:Sync(syncName.bloodBoil)
 	end
 end
@@ -273,21 +306,13 @@ function module:GnarlmoonCastEvent(casterGuid, targetGuid, eventType, spellId, c
 	end
 end
 
-function module:Ravens()
-	if self.db.profile.ravensbar then
-		self:RemoveBar(L["bar_ravens"])
-		self:Bar(L["bar_ravens"], timer.ravenSummon[2], icon.ravens, true, color.ravens)
-	end
-	if self.db.profile.ravens then
-		self:DelayedMessage(timer.ravenSummon[2] - 5, L["msg_ravensSoon"], "Important", false, nil, false)
-	end
-end
-
 function module:BigWigs_RecvSync(sync, rest, nick)
 	if sync == syncName.lunarShift then
 		self:LunarShift()
 	elseif sync == syncName.owlPhaseStart then
 		self:OwlPhaseStart()
+	elseif sync == syncName.owlKill then
+		self:OwlKill()
 	elseif sync == syncName.owlPhaseEnd then
 		self:OwlPhaseEnd()
 	elseif sync == syncName.bloodBoil then
@@ -306,46 +331,83 @@ function module:LunarShift()
 	end
 end
 
+function module:Ravens()
+	if self.db.profile.ravensbar then
+		self:RemoveBar(L["bar_ravens"])
+		self:Bar(L["bar_ravens"], timer.ravenSummon[2], icon.ravens, true, color.ravens)
+	end
+	if self.db.profile.ravens then
+		self:DelayedMessage(timer.ravenSummon[2] - 5, L["msg_ravensSoon"], "Important", false, nil, false)
+	end
+end
+
 function module:OwlPhaseStart()
+	if self.db.profile.printkeeper then
+		print("Start of Owl Phase")
+	end
 	-- set owl hps to 100
 	self.lowRedOwlHp = 100
 	self.lowBlueOwlHp = 100
 	self.highRedOwlHp = 100
 	self.highBlueOwlHp = 100
-
-	if self.db.profile.owlphase then
-		self.owlPhaseCount = self.owlPhaseCount + 1
+	
+	if self.db.profile.owlphase then		
 		self:Message(L["msg_owlPhaseStart"], "Attention")
 		self:Sound("Alarm")
+	end
 
-		if self.db.profile.owlenrage then
-			self:Bar(L["bar_owlEnrage"], timer.owlEnrage, icon.owlEnrage, true, color.owlEnrage)
-			self:DelayedMessage(timer.owlEnrage - 10, L["msg_owlEnrage"], "Urgent")
-			self:DelayedMessage(timer.owlEnrage, L["msg_owlsEnraged"], "Important")
-		end
+	if self.db.profile.owlenrage then
+		self:Bar(L["bar_owlEnrage"], timer.owlEnrage, icon.owlEnrage, true, color.owlEnrage)
+		self:DelayedMessage(timer.owlEnrage - timer.owlKill, L["msg_owlEnrage"], "Urgent")
+		self:DelayedMessage(timer.owlEnrage, L["msg_owlsEnraged"], "Important")
+	end
 
-		-- Cancel Lunar Shift bars during owl phase
-		self:RemoveBar(L["bar_lunarShiftCast"])
-		self:RemoveBar(L["bar_lunarShiftCD"])
+	-- Cancel Lunar Shift bars during owl phase
+	self:RemoveBar(L["bar_lunarShiftCast"])
+	self:RemoveBar(L["bar_lunarShiftCD"])
 
-		-- Cancel Blood Boil bar during owl phase
-		self:RemoveBar(L["bar_bloodBoil"])
+	-- Cancel Blood Boil bar during owl phase
+	self:RemoveBar(L["bar_bloodBoil"])
 
-		if self.db.profile.owlhpframe then
-			self.owlsExist = true
-			self:UpdateOwlStatusFrame()
-		end
+	if self.db.profile.owlhpframe then
+		self.owlsExist = true
+		self:UpdateOwlStatusFrame()
+	end
+end
+
+function module:OwlKill()
+	local enrageBar, time, elapsed = self:BarStatus(L["bar_owlEnrage"])
+	if self.db.profile.owlenrage and enrageBar and time - elapsed > timer.owlKill then -- if an owl dies >10s before enrage, shorten the timer
+		--adjust bar
+		self:Bar(L["bar_owlEnrage"], timer.owlKill, icon.owlEnrage, true, color.owlEnrage)
+		--cancel scheduled enrage messages
+		self:CancelDelayedMessage(L["msg_owlEnrage"])
+		self:CancelDelayedMessage(L["msg_owlsEnraged"])
+		--trigger 10s warning immediately
+		self:Message(L["msg_owlEnrage"], "Urgent")
+		--schedule new enrage announcement
+		self:DelayedMessage(timer.owlKill, L["msg_owlsEnraged"], "Important")
 	end
 end
 
 function module:OwlPhaseEnd()
 	if self.db.profile.owlphase then
 		self:Message(L["msg_owlPhaseEnd"], "Positive")
-		self:RemoveBar(L["bar_owlEnrage"])
-
-		self.owlsExist = false
-		self:UpdateOwlStatusFrame()
 	end
+
+	local enrageBar, time, elapsed = self:BarStatus(L["bar_owlEnrage"])
+	if enrageBar then
+		if time - elapsed > timer.owlKill then -- more than 10s left
+		self:CancelDelayedMessage(L["msg_owlEnrage"])
+		end
+		if time - elapsed > 0 then -- more than 0s left
+			self:CancelDelayedMessage(L["msg_owlsEnraged"])
+		end
+		self:RemoveBar(L["bar_owlEnrage"])
+	end
+
+	self.owlsExist = false
+	self:UpdateOwlStatusFrame()
 end
 
 function module:CheckHps()
@@ -598,42 +660,6 @@ function module:SetOwlHpText(fontString, healthPercent)
 	fontString:SetTextColor(r, g, b)
 end
 
-function module:Test()
-	-- Test owl HP frame
-	self.owlsExist = true
-
-	-- Update HP values over time
-	self:ScheduleEvent("TestOwlsHP1", function()
-		module.lowRedOwlHp = 85
-		module.lowBlueOwlHp = 80
-		module.highRedOwlHp = 90
-		module.highBlueOwlHp = 75
-		module:UpdateOwlStatusFrame()
-	end, 3)
-
-	self:ScheduleEvent("TestOwlsHP2", function()
-		module.lowRedOwlHp = 50
-		module.lowBlueOwlHp = 45
-		module.highRedOwlHp = 55
-		module.highBlueOwlHp = 40
-		module:UpdateOwlStatusFrame()
-	end, 6)
-
-	self:ScheduleEvent("TestOwlsHP3", function()
-		module.lowRedOwlHp = 15
-		module.lowBlueOwlHp = 12
-		module.highRedOwlHp = 18
-		module.highBlueOwlHp = 9
-		module:UpdateOwlStatusFrame()
-	end, 9)
-
-	-- Hide frame when phase ends
-	self:ScheduleEvent("HideOwlFrame", function()
-		module.owlsExist = false
-		module:UpdateOwlStatusFrame()
-	end, 12)
-end
-
 -- Update the Test function to include Blood Boil events:
 function module:Test()
 	-- Initialize module state
@@ -694,9 +720,9 @@ function module:Test()
 		end },
 
 		-- Moon debuffs and owl HP reduction
-		{ time = 26, func = function()
+		{ time = 25, func = function()
 			print("Test: You are afflicted by Red Moon")
-			module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE("You are afflicted by Red Moon (1).")
+			module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE("You are afflicted by Red Moon.")
 
 			module.lowRedOwlHp = 85
 			module.lowBlueOwlHp = 70
@@ -705,7 +731,10 @@ function module:Test()
 			module:UpdateOwlStatusFrame()
 		end },
 
-		{ time = 29, func = function()
+		{ time = 31, func = function()
+			print("Test: You are afflicted by Owl Gaze")
+			module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE("You are afflicted by Owl Gaze.")
+			
 			module.lowRedOwlHp = 50
 			module.lowBlueOwlHp = 45
 			module.highRedOwlHp = 55
@@ -715,7 +744,7 @@ function module:Test()
 
 		{ time = 33, func = function()
 			print("Test: You are afflicted by Blue Moon")
-			module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE("You are afflicted by Blue Moon (1).")
+			module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE("You are afflicted by Blue Moon.")
 
 			module.lowRedOwlHp = 15
 			module.lowBlueOwlHp = 12
@@ -752,9 +781,9 @@ function module:Test()
 		-- Moon debuffs and owl HP reduction for second phase
 		{ time = 52, func = function()
 			print("Test: You are afflicted by Blue Moon")
-			module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE("You are afflicted by Blue Moon (1).")
+			module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE("You are afflicted by Blue Moon.")
 
-			module.lowRedOwlHp = 70
+			module.lowRedOwlHp = 60
 			module.lowBlueOwlHp = 85
 			module.highRedOwlHp = 75
 			module.highBlueOwlHp = 90
@@ -768,16 +797,18 @@ function module:Test()
 		end },
 
 		{ time = 58, func = function()
-			module.lowRedOwlHp = 35
+			print("Test: Red Owl dies.")
+			module.lowRedOwlHp = 0
 			module.lowBlueOwlHp = 45
 			module.highRedOwlHp = 42
 			module.highBlueOwlHp = 50
 			module:UpdateOwlStatusFrame()
+			module:CHAT_MSG_COMBAT_HOSTILE_DEATH("Red Owl dies.")
 		end },
 
 		{ time = 62, func = function()
 			print("Test: You are afflicted by Red Moon")
-			module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE("You are afflicted by Red Moon (1).")
+			module:CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE("You are afflicted by Red Moon.")
 		end },
 
 		-- Owl Phase ends

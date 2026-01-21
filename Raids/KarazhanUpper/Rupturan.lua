@@ -1,8 +1,8 @@
 local module, L = BigWigs:ModuleDeclaration("Rupturan the Broken", "Karazhan")
 
-module.revision = 30002
+module.revision = 30003
 module.enabletrigger = module.translatedName
-module.toggleoptions = { "livingstone", "dirtmound", "dirtmoundmark", "flamestrike", "bosskill" }
+module.toggleoptions = { "livingstone", "dirtmound", "dirtmoundmark", "flamestrike", "flamestrikemove", "reform", "bosskill" }
 module.zonename = {
 	AceLibrary("AceLocale-2.2"):new("BigWigs")["Tower of Karazhan"],
 	AceLibrary("Babble-Zone-2.2")["Tower of Karazhan"],
@@ -11,10 +11,12 @@ module.zonename = {
 }
 
 module.defaultDB = {
-	livingstone   = true,
-	dirtmound     = true,
-	dirtmoundmark = false,
-	flamestrike   = true,
+	livingstone     = true,
+	dirtmound       = true,
+	dirtmoundmark   = false,
+	flamestrike     = true,
+	flamestrikemove = true,
+	reform          = true,
 }
 
 -------------------------------------------------------------------------------
@@ -36,16 +38,27 @@ L:RegisterTranslations("enUS", function() return {
 	dirtmoundmark_desc   = "Mark the player Dirt Mound is chasing with a Diamond.",
 
 	flamestrike_cmd      = "flamestrike",
-	flamestrike_name     = "Flamestrike Indicators",
+	flamestrike_name     = "Flamestrike Cast",
 	flamestrike_desc     = "Warn when Flamestrike (Ignite Rock) is casting.",
 
+	flamestrikemove_cmd      = "flamestrikemove",
+	flamestrikemove_name     = "Flamestrike Alert",
+	flamestrikemove_desc     = "Warns when you stand in fire (Ignite Rock).",
+
+	reform_cmd           = "reform",
+	reform_name          = "Reform Timer",
+	reform_desc          = "When you kill a Fragment, show show time left until Rupturan will be reformed.",
+
 	-- Bars / Messages
-	bar_ignite_rock      = "Flamestrike",
-	bar_ignite_rock_soon = "Flamestrike soon",
+	bar_ignite_rock      = "Flamestrike casting",
+	warn_ignite_rock     = "Incoming!",
+	msg_flamestrike      = "Move out of Flamestrike!",
+	warn_flamestrike     = "MOVE",
 	bar_ls_earthstomp    = "Living Stone STOMP",
 	msg_dm_quake         = "Dirt Mound Quake!  MOVE AWAY!",
 	msg_dm_target_near   = "Get away from %s!",
 	msg_dm_target_you    = "Dirt Mound chasing you!",
+	bar_reform           = "Rupturan Reforming",
 
 	-- Triggers
 	trigger_start        = "All shall crumble",
@@ -56,18 +69,24 @@ L:RegisterTranslations("enUS", function() return {
 	trigger_dm_quake     = "Dirt Mound's Quake .?.its (.+) for",
 	trigger_dm_spawn     = "Rupturan commands the earth to crush (.+)!",
 	trigger_dm_die       = "Dirt Mound dies",
+	trigger_flamestrike  = "You are afflicted by Ignite Rock",
+	trigger_igniterock   = "Fragment of Rupturan begins to cast Ignite Rock",
+	trigger_reform       = "Fragment of Rupturan begins to cast Reform",
 } end)
 
 local timer = {
 	earthstomp = 5,
 	igniteRockCD = {20,53},
 	igniteRock = 3,
+	reform = 10,
 }
 
 local icon = {
 	earthstomp = "Ability_ThunderClap",
 	quake      = "Spell_Nature_Earthquake",
 	igniteRock = "Spell_Fire_SelfDestruct",
+	fire       = "Spell_Fire_Fire", -- warning when standing in Ignite Rock (confusing if same icon as incoming cast)
+	reform     = "Spell_Nature_AstralRecalGroup",
 }
 
 local syncName = {
@@ -75,6 +94,12 @@ local syncName = {
 	igniteRock   = "RupturanIgniteRock"..module.revision,
 	dm_spawn     = "RupturanDirtMoundSpawn"..module.revision,
 	phase2       = "RupturanPhaseTwo"..module.revision,
+	reform       = "RupturanReform"..module.revision,
+}
+
+local spellIds = {
+	igniteRock = 51298,
+	reform     = 51299,
 }
 
 -- keep track of which player currently has popcorn
@@ -99,13 +124,20 @@ function module:OnEnable()
 	-- phase2
 	self:RegisterEvent("CHAT_MSG_MONSTER_YELL", "Event")
 
+	-- Ignite Rock affliction
+	self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE", "Event")
+
 	if SUPERWOW_VERSION or SetAutoloot then
 		self:RegisterEvent("UNIT_CASTEVENT")
+	else
+		self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE", "CastEvent") -- Ignite Rock cast
+		self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_BUFF", "CastEvent") -- Reform cast
 	end
 
 	self:ThrottleSync(2, syncName.earthstomp)
 	self:ThrottleSync(2, syncName.dm_spawn)
 	self:ThrottleSync(2, syncName.phase2)
+	self:ThrottleSync(1, syncName.reform)
 end
 
 -- function module:OnSetup()
@@ -150,12 +182,29 @@ function module:Event(msg)
 	end
 	if string.find(msg, L.trigger_boss_dead) then
 		self:SendBossDeathSync()
+		return
+	end
+	if self.db.profile.flamestrikemove and string.find(msg, L.trigger_flamestrike) then
+		self:WarningSign(icon.fire, 2, false, L.warn_flamestrike)
+		self:Message(L.msg_flamestrike, "Important", true, "Info")
 	end
 end
 
 function module:UNIT_CASTEVENT(caster,target,action,spellId,castTime)
-	if spellId == 51298 and action == "START" then
+	if spellId == spellIds.igniteRock and action == "START" then
 		self:Sync(syncName.igniteRock .. " " .. (castTime / 1000))
+	end
+	if spellId == spellIds.reform and action == "START" then
+		self:Sync(syncName.reform)
+	end
+end
+
+function module:CastEvent(msg)
+	if string.find(msg, L.trigger_igniterock) then
+		self:Sync(syncName.igniteRock .. " " .. spellIds.igniteRock)
+	end
+	if string.find(msg, L.trigger_reform) then
+		self:Sync(syncName.reform)
 	end
 end
 
@@ -176,6 +225,9 @@ function module:BigWigs_RecvSync(sync, rest, nick)
 	elseif sync == syncName.igniteRock and rest then
 		local castTime = tonumber(rest)
 		self:IgniteRock(castTime)
+
+	elseif sync == syncName.reform then
+		self:Reform()
 	end
 end
 
@@ -231,8 +283,14 @@ function module:IgniteRock(castTime)
 	castTime = castTime or timer.igniteRock
 
 	self:Sound("Alarm")
-	self:WarningSign(icon.igniteRock, 3, true, L.bar_ignite_rock)
+	self:WarningSign(icon.igniteRock, 3, true, L.warn_ignite_rock)
 	self:Bar(L.bar_ignite_rock, castTime, icon.igniteRock)
+end
+
+function module:Reform()
+	if not self.db.profile.reform then return end
+
+	self:Bar(L.bar_reform, timer.reform, icon.reform)
 end
 
 -------------------------------------------------------------------------------
@@ -278,10 +336,34 @@ function module:Test()
 		"CHAT_MSG_MONSTER_YELL",
 		"Let the cracks of this world destroy you.."},
 		{25,
-		"Ignite Rock:",
+		"Ignite Rock Cast SuperWoW:",
 		"UNIT_CASTEVENT",
-		{"player", "player", "START", 51298, 3000} },
-		{35,
+		{"player", "player", "START", spellIds.igniteRock, 3000} },
+		{25.5,
+		"Ignite Rock Cast vanilla:",
+		"CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE",
+		"Fragment of Rupturan begins to cast Ignite Rock." },
+		{30,
+		"Ignite Rock Affliction:",
+		"CHAT_MSG_SPELL_PERIODIC_SELF_DAMAGE",
+		"You are afflicted by Ignite Rock." },
+		{34,
+		"Reform Cast SuperWoW:",
+		"UNIT_CASTEVENT",
+		{"player", "player", "START", spellIds.reform, 10000} },
+		{34.5,
+		"Reform Cast vanilla 1-1:",
+		"CHAT_MSG_SPELL_CREATURE_VS_CREATURE_BUFF",
+		"Fragment of Rupturan begins to cast Reform." },
+		{34.6,
+		"Reform Cast vanilla 1-2:",
+		"CHAT_MSG_SPELL_CREATURE_VS_CREATURE_BUFF",
+		"Fragment of Rupturan begins to cast Reform." },
+		{37,
+		"Reform Cast vanilla 2:",
+		"CHAT_MSG_SPELL_CREATURE_VS_CREATURE_BUFF",
+		"Fragment of Rupturan begins to cast Reform." },
+		{40,
 		"Boss kill:",
 		"CHAT_MSG_COMBAT_HOSTILE_DEATH",
 		"Rupturan the Broken dies."},
