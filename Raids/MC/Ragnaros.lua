@@ -1,7 +1,7 @@
 
 local module, L = BigWigs:ModuleDeclaration("Ragnaros", "Molten Core")
 
-module.revision = 30080
+module.revision = 30081
 module.enabletrigger = module.translatedName
 module.toggleoptions = {"emerge", "wrathofragnaros", "lava", "adds", "melt", "elementalfire", -1, "tankalert", "tankwrathhit", "tankwrathresist", "tankmark", "bosskill"}
 module.wipemobs = {"Son of Flame"}
@@ -124,45 +124,39 @@ local timer = {
 	domoStart3 = 45.457,
 	domoStart4 = 32.144,
 	domoStart5 = 23.9,
-	
+
 	nextEmerge = 90,
-	
+
 	knockbackCd = 25, --supposed to be 25,30
 	knockbackSoon = 8,
-	
-	elementalFire = 8,
 }
 local icon = {
 	domoStart = "inv_misc_pocketwatch_01",
-	
+
 	emerge = "ability_stealth",
-	
+
 	knockback = "ability_smash",
-	
+
 	lava = "spell_fire_fire",
-	
-	elementalFire = "spell_fire_flametounge",
-	
+
 	melt = "inv_sword_36",
 }
 local color = {
 	domoStart = "White",
-	
+
 	emerge = "White",
-	
+
 	knockbackCd = "Black",
 	knockbackSoon = "Cyan",
-	
-	elementalFire = "Red",
-	
+
 	melt = "Yellow",
 }
 local syncName = {
 	submerge = "RagnarosSubmerge"..module.revision,
 	emerge = "RagnarosEmerge"..module.revision,
-	
+
 	knockback = "RagnarosKnockback"..module.revision,
-	
+
 	addDead = "RagnarosSonDead"..module.revision,
 	
 	elementalFire = "RagnarosElementalFire"..module.revision,

@@ -3,7 +3,7 @@ local module, L = BigWigs:ModuleDeclaration("Keeper Gnarlmoon", "Karazhan")
 -- module variables
 module.revision = 30001
 module.enabletrigger = module.translatedName
-module.toggleoptions = { "moondebuff", "lunarshift", "ravens", "bloodboil", -1, "owlphase", "owlenrage", "owlhpframe", "owlgaze", -1, "printkeeper", "bosskill" }
+module.toggleoptions = { "moondebuff", "lunarshift", "ravens", "ravensbar", "bloodboil", -1, "owlphase", "owlenrage", "owlhpframe", "owlgaze", -1, "printkeeper", "bosskill" }
 module.zonename = {
 	AceLibrary("AceLocale-2.2"):new("BigWigs")["Tower of Karazhan"],
 	AceLibrary("Babble-Zone-2.2")["Tower of Karazhan"],
@@ -13,6 +13,7 @@ module.defaultDB = {
 	moondebuff = true,
 	lunarshift = true,
 	ravens = true,
+  ravensbar = true,
 	bloodboil = true,
 	owlphase = true,
 	owlenrage = true,
@@ -38,7 +39,11 @@ L:RegisterTranslations("enUS", function()
 
 		ravens_cmd = "ravens",
 		ravens_name = "Raven Alert",
-		ravens_desc = "Timer for when 12 Blood Ravens will appear",
+		ravens_desc = "Alerts a few seconds before 12 Blood Ravens will appear (requires someone with SuperWoW in the raid)",
+
+		ravensbar_cmd = "ravensbar",
+		ravensbar_name = "Raven timer bar",
+		ravensbar_desc = "Shows a timer bar for Flock of Ravens (requires someone with SuperWoW in the raid)",
 
 		bloodboil_cmd = "bloodboil",
 		bloodboil_name = "Blood Boil Alert",
@@ -76,6 +81,7 @@ L:RegisterTranslations("enUS", function()
 		msg_lunarShift = "Lunar Shift casting!",
 
 		msg_ravensSoon = "12 ravens incoming",
+		bar_ravens = "Flock of Ravens",
 
 		msg_midHp = "Keeper Gnarlmoon < 71% - Owls Soon (@ 66%)!",
 		msg_lowHp = "Keeper Gnarlmoon < 38% - Owls Soon (@ 33%)!",
@@ -114,7 +120,7 @@ local timer = {
 	owlEnrage = 60,
 	owlKill = 10,
 	owlGaze = 2.5,
-	ravenSummon = { 15, 40 },
+	ravenSummon = { 15, 35 },
 	bloodBoil = 11,
 }
 
@@ -126,6 +132,7 @@ local icon = {
 	redMoon = "inv_misc_orb_05",
 	blueMoon = "inv_ore_arcanite_02",
 	bloodBoil = "Spell_Shadow_BloodBoil",
+	ravens = "Ability_Hunter_Pet_Bat",
 }
 
 local color = {
@@ -133,6 +140,7 @@ local color = {
 	owlPhase = "Green",
 	owlEnrage = "Red",
 	bloodBoil = "Red",
+	ravens = "Black",
 }
 
 local syncName = {
@@ -141,6 +149,11 @@ local syncName = {
 	owlKill = "GnarlmoonOwlKill" .. module.revision,
 	owlPhaseEnd = "GnarlmoonOwlEnd" .. module.revision,
 	bloodBoil = "GnarlmoonBloodBoil" .. module.revision,
+	ravens = "GnarlmoonRavens" .. module.revision,
+}
+
+local spellIds = {
+	ravens = 51083, -- Flock of Ravens
 }
 
 function module:OnSetup()
@@ -150,9 +163,6 @@ function module:OnSetup()
 	self.lowHp = nil
 	self.midHp = nil
 	self.gnarlHealth = 100
-
-	-- used to separate timer for first raven summon from remainer
-	self.firstRaven = true
 
 	-- Reset owl health values
 	self.lowRedOwlHp = 100
@@ -175,6 +185,11 @@ function module:OnEnable()
 	self:ThrottleSync(25, syncName.owlKill) --only check 1 owl kill per phase
 	self:ThrottleSync(5, syncName.owlPhaseEnd)
 	self:ThrottleSync(5, syncName.bloodBoil)
+	self:ThrottleSync(5, syncName.ravens)
+
+	if SUPERWOW_VERSION then
+		self:RegisterCastEventsForUnitName("Keeper Gnarlmoon", "GnarlmoonCastEvent")
+	end
 
 	-- Store owl health
 	self.lowRedOwlHp = 100
@@ -199,9 +214,6 @@ function module:OnEngage()
 	self.midHp = nil
 	self.gnarlHealth = 100
 
-	-- used to separate timer for first raven summon from remainer
-	self.firstRaven = true
-
 	-- Make sure the owl frame is hidden at the start of the encounter
 	self.owlsExist = false
 	self:UpdateOwlStatusFrame()
@@ -210,25 +222,19 @@ function module:OnEngage()
 		self:Bar(L["bar_lunarShiftCD"], timer.lunarShiftCD, icon.lunarShift, true, color.lunarShift)
 	end
 
+	if self.db.profile.ravensbar then
+		self:Bar(L["bar_ravens"], timer.ravenSummon[1], icon.ravens, true, color.ravens)
+	end
 	if self.db.profile.ravens then
 		self:DelayedMessage(timer.ravenSummon[1] - 5, L["msg_ravensSoon"], "Important", false, nil, false)
 	end
-	self:ScheduleEvent("FirstRavens", self.FirstRavens, timer.ravenSummon[1], self)
 
 	self:ScheduleRepeatingEvent("CheckHps", self.CheckHps, 1, self)
 end
 
 function module:OnDisengage()
-	if self:IsEventScheduled("FirstRavens") then
-		self:CancelScheduledEvent("FirstRavens")
-	end
-
 	if self:IsEventScheduled("CheckHps") then
 		self:CancelScheduledEvent("CheckHps")
-	end
-
-	if self:IsEventScheduled("RemainingRavens") then
-		self:CancelScheduledEvent("RemainingRavens")
 	end
 
 	self.owlsExist = false
@@ -294,6 +300,12 @@ function module:BloodBoil()
 	end
 end
 
+function module:GnarlmoonCastEvent(casterGuid, targetGuid, eventType, spellId, castTime)
+	if spellId == spellIds.ravens and eventType == "CAST" then
+		self:Sync(syncName.ravens)
+	end
+end
+
 function module:BigWigs_RecvSync(sync, rest, nick)
 	if sync == syncName.lunarShift then
 		self:LunarShift()
@@ -305,6 +317,8 @@ function module:BigWigs_RecvSync(sync, rest, nick)
 		self:OwlPhaseEnd()
 	elseif sync == syncName.bloodBoil then
 		self:BloodBoil()
+	elseif sync == syncName.ravens then
+		self:Ravens()
 	end
 end
 
@@ -317,15 +331,11 @@ function module:LunarShift()
 	end
 end
 
-function module:FirstRavens()
-	-- first summon is after 15 seconds, remainder are every 40 seconds
-	if self.db.profile.ravens then
-		self:DelayedMessage(timer.ravenSummon[2] - 5, L["msg_ravensSoon"], "Important", false, nil, false)
+function module:Ravens()
+	if self.db.profile.ravensbar then
+		self:RemoveBar(L["bar_ravens"])
+		self:Bar(L["bar_ravens"], timer.ravenSummon[2], icon.ravens, true, color.ravens)
 	end
-	self:ScheduleRepeatingEvent("RemainingRavens", self.RemainingRavens, timer.ravenSummon[2], self)
-end
-
-function module:RemainingRavens()
 	if self.db.profile.ravens then
 		self:DelayedMessage(timer.ravenSummon[2] - 5, L["msg_ravensSoon"], "Important", false, nil, false)
 	end
@@ -679,9 +689,15 @@ function module:Test()
 		end },
 
 		-- Second Blood Boil
-		{ time = 18, func = function()
+		{ time = 17, func = function()
 			print("Test: Keeper Gnarlmoon's Blood Boil hits you")
 			module:CHAT_MSG_SPELL_CREATURE_VS_SELF_DAMAGE("Keeper Gnarlmoon's Blood Boil hits you for 500 Fire damage.")
+		end },
+
+		-- First Flock of Ravens (15s after engage)
+		{ time = 18, func = function()
+			print("Test: Keeper Gnarlmoon casts Flock of Ravens")
+			module:Ravens()
 		end },
 
 		-- HP triggers
@@ -772,6 +788,12 @@ function module:Test()
 			module.highRedOwlHp = 75
 			module.highBlueOwlHp = 90
 			module:UpdateOwlStatusFrame()
+		end },
+
+		-- Second Flock of Ravens (35s after first)
+		{ time = 53, func = function()
+			print("Test: Keeper Gnarlmoon casts Flock of Ravens")
+			module:Ravens()
 		end },
 
 		{ time = 58, func = function()
