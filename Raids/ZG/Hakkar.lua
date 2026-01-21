@@ -8,13 +8,15 @@ module.defaultDB = {
 	enrage = false,
 }
 
+local _, playerClass = UnitClass("player")
+
 L:RegisterTranslations("enUS", function()
 	return {
 		cmd = "Hakkar",
 
 		mc_cmd = "mc",
 		mc_name = "Mind Control Alert",
-		mc_desc = "Warn for Mind Control",
+		mc_desc = "Warn for Mind Control. Click bar to target victim (and cast Sheep/Fear if mage/warlock).",
 
 		siphon_cmd = "siphon",
 		siphon_name = "Blood Siphon Alert",
@@ -441,9 +443,14 @@ function module:CauseInsanity(rest)
 		self:Bar(rest .. L["bar_causeInsanity"] .. " >Click Me<", timer.causeInsanityDur, icon.causeInsanity, true, color.causeInsanityDur)
 		self:SetCandyBarOnClick("BigWigsBar " .. rest .. L["bar_causeInsanity"] .. " >Click Me<", function(name, button, extra)
 			TargetByName(extra, true)
+			if playerClass == "MAGE" then
+				CastSpellByName("Polymorph")
+			elseif playerClass == "WARLOCK" then
+				CastSpellByName("Fear")
+			end
 		end, rest)
 
-		if UnitClass("Player") == "Mage" or UnitClass("Player") == "Warlock" then
+		if playerClass == "MAGE" or playerClass == "WARLOCK" then
 			self:Message(rest .. L["msg_causeInsanity"], "Attention", false, nil, false)
 			self:Sound("Info")
 			self:WarningSign(icon.causeInsanity, 0.7)
@@ -472,10 +479,10 @@ function module:CauseInsanityFade(rest)
 
 	self:Bar(L["bar_causeInsanityCd"], timer.causeInsanityCd, icon.causeInsanity, true, color.causeInsanityCd)
 
-	if UnitClass("Player") == "Priest" then
+	if playerClass == "PRIEST" then
 		self:WarningSign(icon.priestDispel, 0.7)
 		self:Sound("Info")
-	elseif UnitClass("Player") == "Paladin" then
+	elseif playerClass == "PALADIN" then
 		self:WarningSign(icon.paladinDispel, 0.7)
 		self:Sound("Info")
 	end
@@ -525,7 +532,7 @@ function module:AspectJeklik()
 	self:Bar(L["bar_aspectOfJeklikDur"], timer.jeklikDur, icon.jeklik, true, color.jeklikDur)
 	self:DelayedBar(timer.jeklikDur, L["bar_aspectOfJeklikCd"], timer.jeklikCd, icon.jeklik, true, color.jeklikCd)
 
-	if UnitClass("Player") == "Priest" or UnitClass("Player") == "Paladin" then
+	if playerClass == "PRIEST" or playerClass == "PALADIN" then
 		self:WarningSign(icon.jeklik, 0.7)
 		self:Sound("Info")
 	end
@@ -554,7 +561,7 @@ function module:AspectThekalStart()
 
 	self:Bar(L["bar_aspectOfThekalDur"], timer.thekalDur, icon.thekal, true, color.thekalDur)
 
-	if UnitClass("Player") == "Hunter" then
+	if playerClass == "HUNTER" then
 		self:Message(L["msg_aspectOfThekal"], "Important", false, nil, false)
 		self:Sound("Info")
 		self:WarningSign(icon.thekal, 1)

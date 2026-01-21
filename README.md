@@ -10,12 +10,21 @@ Big updates to K40 and MC (**check your boss settings!**), small fixes and updat
 * Sanv - bar for add phase duration
 * Rupturan - alert when you stand in fire
 * Mephistroth - Doom bar, purge alert, better Shards handling, sound cue on Shackle fade
+## Other Feature Highlights
+* Announcing bars to /raid now requires a Shift-click to prevent accidental spam.
+* AQ40 - C'Thun map fix
+* Ragnaros - warn about tank knockback
+* ZG & AQ20 - minor fixes
+* DM North - Kromcrush fixes, new Eye of Kilrogg module
 ## Future Ideas
-* Dire Maul North - Alert on Eye summoning (similar to Stratholme).
 * Chess - Keep track of major piece health and announce every % below 5.
+* Centralize bar OnClick behavior for targeting and spell casting (for easier setup and so custom bars can be right-clicked to cancel them).
+* A timer bar for temporary flying mounts.
+* A new bar type for mob HP.
 ## Karazhan 40 - Full Changelog
 Relative to pepopo978's BigWigs.
 ### General
+* Boss settings have their own "Karazhan40" menu category (separate from K10).
 * Fixed various triggers and unit tests being based on formatted logs, eg " (1)".
 * Changed a few sound effects.
 * Added BigWigs:BuffNameByIndex(buffIndex) to Core.lua allowing to distinguish between buffs/debuffs with the same icon (loads the buffs into a virtual tooltip to read their name).

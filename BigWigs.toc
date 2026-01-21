@@ -1,8 +1,8 @@
 ## Interface: 11200
 
-## X-Revision: 30132
+## X-Revision: 30134
 ## X-Fork: Golden
-## Title: |cFFEDD516Golden|r Big Wigs |cff7fff7f30132|r |cffabd473Turtle-WoW|r
+## Title: |cFFEDD516Golden|r Big Wigs |cff7fff7f30134|r |cffabd473Turtle-WoW|r
 ## Title-zhCN: |cffabd473Turtle-WoW|r Big Wigs
 ## Notes: Boss Mods with Timer bars.
 ## Notes-esES: Módulos para Jefes con barras temporizadoras.
@@ -162,6 +162,7 @@ Raids\MC\Surger.lua
 Raids\MC\CoreHound.lua
 
 Raids\DireMaul\CaptainKromcrush.lua
+Raids\DireMaul\EyeOfKilrogg.lua
 Raids\DireMaul\Gordok.lua
 
 Raids\Other\Azuregos.lua
