@@ -664,9 +664,9 @@ function BigWigsBars:BigWigs_StartBar(module, text, time, icon, otherc, c1, c2, 
 				return
 			end
 
-			if IsShiftKeyDown() then
+			if IsControlKeyDown() then
 				SendChatMessage(text .. " in " .. SecondsToTime(math.floor(t - elapsed)), "RAID_WARNING");
-			else
+			elseif IsShiftKeyDown() then
 				SendChatMessage(text .. " in " .. SecondsToTime(math.floor(t - elapsed)), "RAID");
 				SendChatMessage(text .. " in " .. SecondsToTime(math.floor(t - elapsed)), "BATTLEGROUND");
 			end
