@@ -915,7 +915,7 @@ function UpdateCthunMap()
 		else
             unitFrame:Show()
             unitFrame:ClearAllPoints()
-			unitFrame:SetPoint("CENTER", cthunmap.map, "TOPLEFT", coordX, -coordY)
+			unitFrame:SetPoint("CENTER", cthunmap.map, "TOPLEFT", coordX, coordY)
 			CthunMapUnitIcon(i)
 
             -- Tooltip (safe outside raid)
