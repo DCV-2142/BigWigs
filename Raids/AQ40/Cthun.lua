@@ -379,7 +379,7 @@ function module:OnEngage()
 end
 
 function module:OnDisengage()
-	cthunmap:Hide()
+	if cthunmap then cthunmap:Hide() end
 
 	self:TriggerEvent("BigWigs_HideProximity")
 	self:TriggerEvent("BigWigs_StopDebuffTrack")
@@ -1039,9 +1039,12 @@ function module:SetupMap()
 		cthunmap:StartMoving()
 	end)
 	cthunmap:SetScript("OnDragStop", function()
-		cthunmap:StopMovingOrSizing();
-		self.db.profile.mapX = cthunmap:GetLeft();
-		self.db.profile.mapY = cthunmap:GetTop()
+		cthunmap:StopMovingOrSizing()
+
+		-- Save offsets for TOPLEFT anchoring:
+		-- GetLeft() is fine for X, but Y must be relative to UIParent's top.
+		self.db.profile.mapX = cthunmap:GetLeft()
+		self.db.profile.mapY = cthunmap:GetTop() - UIParent:GetHeight()  -- negative when below the top
 	end)
 	cthunmap:SetScript("OnUpdate", UpdateCthunMap)
 	cthunmap:Hide()
