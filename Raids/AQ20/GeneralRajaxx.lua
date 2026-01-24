@@ -4,7 +4,7 @@ local andorov = AceLibrary("Babble-Boss-2.2")["Lieutenant General Andorov"]
 
 module.revision = 30069
 module.enabletrigger = {module.translatedName, andorov}
-module.toggleoptions = {"wave", "fear", "attackorder", "lightningcloud", "shockwave", "shield", "knockback", "enlarge", "thundercrash", "bosskill"}
+module.toggleoptions = {"wave", "fear", "attackorder", "lightningcloud", "shockwave", "shield", "knockback", "enlarge", "thundercrash", "andorov", "bosskill"}
 
 L:RegisterTranslations("enUS", function() return {
 	cmd = "Rajaxx",
@@ -44,6 +44,10 @@ L:RegisterTranslations("enUS", function() return {
 	thundercrash_cmd = "thundercrash",--2
 	thundercrash_name = "Thundercrash Alert",
 	thundercrash_desc = "Warn for Thundercrash",
+	
+	andorov_cmd = "andorov",
+	andorov_name = "Andorov Bar",
+	andorov_desc = "Display a bar while Lieutenant General Andorov is alive. Click the bar to target him.",
 	
 	
 	trigger_eventStarted = "Remember, Rajaxx, when I said I'd kill you last?",--CHAT_MSG_MONSTER_YELL
@@ -94,6 +98,8 @@ L:RegisterTranslations("enUS", function() return {
 	msg_wave8 = "Wave 8/8 -- General Rajaxx",
 	trigger_thundercrash = "Thundercrash",
 	bar_thundercrash = "Thundercrash CD",
+	
+	bar_andorov = ">Target< Andorov",
 } end )
 
 local timer = {
@@ -185,28 +191,38 @@ function module:OnEnable()
 end
 
 function module:OnSetup()
-	self:RegisterEvent("CHAT_MSG_COMBAT_HOSTILE_DEATH")
 end
 
 function module:OnEngage()
-	self:Bar("Target Andorov", 3600, icon.eventStart, true, "Cyan")
-	self:SetCandyBarOnClick("BigWigsBar ".."Target Andorov", function(name, button, extra) TargetByName("Lieutenant General Andorov", true) end, rest)
+	if self.db.profile.andorov then
+		self:Bar(L["bar_andorov"], 3600, icon.eventStart, true, "Cyan")
+		self:SetCandyBarOnClick("BigWigsBar " .. L["bar_andorov"], function(name, button, extra)
+				TargetByName(andorov, true)
+			end)
+	end
 end
 
 function module:OnDisengage()
+	self:RemoveBar(L["bar_andorov"])
 end
 
 function module:CheckForWipe()
 end
 
-function module:CHAT_MSG_COMBAT_HOSTILE_DEATH(msg)
+function module:OnEnemyDeath(msg)
 	if string.find(msg, L["trigger_wave2"]) then
 		self:Sync(syncName.wave2)
 	end
 end
 
+function module:OnFriendlyDeath(msg)
+	if msg == string.format(UNITDIESOTHER, andorov) then
+		self:RemoveBar(L["bar_andorov"])
+	end
+end
+
 function module:CHAT_MSG_MONSTER_YELL(msg, sender)
-	if msg == L["trigger_eventStarted"] and sender == "Lieutenant General Andorov" then
+	if msg == L["trigger_eventStarted"] and sender == andorov then
 		module:SendEngageSync()
 		self:Sync(syncName.wave1)
 		

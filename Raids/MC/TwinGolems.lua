@@ -23,6 +23,8 @@ L:RegisterTranslations("enUS", function()
 		trigger_bulwarkFade = "Molten Bulwark fades from (.+)%.",
 		msg_switch = "SWITCH to %s",
 		bar_bulwark = "%s Bulwark",
+
+		trigger_victory = "Smoldaris dies.",
 	}
 end)
 
@@ -100,6 +102,12 @@ function module:BulwarkFade(mob)
 	-- tell people to switch targets because Bulwark will go on the other golem in 2-4 seconds
 	if self.db.profile.bulwark then
 		self:Message(string.format(L["msg_switch"], mob), "Attention", true, "Alert")
+	end
+end
+
+function module:OnEnemyDeath(msg)
+	if string.find(msg, L["trigger_victory"]) then
+		self:SendBossDeathSync()
 	end
 end
 
