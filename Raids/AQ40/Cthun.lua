@@ -30,6 +30,12 @@ module.defaultDB = {
 	mapScale = 1,
 	autotarget = false,
 	window = false,
+	-- map alignment tuning
+	mapRot = -5,
+	mapOffX = 3.5,
+	mapOffY = 0.7,
+	mapPivotX = nil,
+	mapPivotY = nil,
 }
 
 L:RegisterTranslations("enUS", function()
@@ -887,42 +893,73 @@ end
 -- Utility Functions --
 -----------------------
 
+local function RotatePoint(x, y, cx, cy, deg)
+	if not deg or deg == 0 then return x, y end
+	local rad = deg * math.pi / 180
+	local s, c = math.sin(rad), math.cos(rad)
+
+	local dx, dy = x - cx, y - cy
+	local rx = dx * c - dy * s
+	local ry = dx * s + dy * c
+	return cx + rx, cy + ry
+end
+
 function GetCthunCoords(unit)
 	local posX, posY = GetPlayerMapPosition(unit)
 	if not posX or not posY or (posX == 0 and posY == 0) then
 		return nil, nil
 	end
-	posX = (18.25 * posX - 5.55) * cthunmap.map:GetWidth()
-	posY = (-12.1666666667 * posY + 5.5) * cthunmap.map:GetHeight()
-	return posX, posY
+
+	local w = cthunmap.map:GetWidth()
+	local h = cthunmap.map:GetHeight()
+
+	-- Original AQ40->texture mapping (raw pixels in map space)
+	local x = (18.25 * posX - 5.55) * w
+	local y = (-12.1666666667 * posY + 5.5) * h
+
+	-- Pull tuning from saved profile (or defaults)
+	local db = (module and module.db and module.db.profile) or nil
+	local rot  = (db and db.mapRot)  or -5
+	local offX = (db and db.mapOffX) or 2
+	local offY = (db and db.mapOffY) or 0
+
+	local cx = (db and db.mapPivotX) or (w / 2)
+	local cy = (db and db.mapPivotY) or (-h / 2)
+
+	-- Rotate + final adjustment
+	x, y = RotatePoint(x, y, cx, cy, rot)
+	x = x + offX
+	y = y + offY
+
+	return x, y
 end
 
 function UpdateCthunMap()
 	SetMapToCurrentZone()
 	if not cthunmap.map or cthunmap.map:GetWidth() == 0 or cthunmap.map:GetHeight() == 0 then
 		return
-    end
+	end
 
 	local tooltipText = ""
 	local tooltipAnchor
 
 	for i = 1, 40 do
-        local unitFrame = cthunmap.map.unit[i]
+		local unitFrame = cthunmap.map.unit[i]
 		local coordX, coordY = GetCthunCoords("raid" .. i)
 
 		if not coordX or not coordY then
-            unitFrame:Hide()
+			unitFrame:Hide()
 		else
-            unitFrame:Show()
-            unitFrame:ClearAllPoints()
+			unitFrame:Show()
+			unitFrame:ClearAllPoints()
 			unitFrame:SetPoint("CENTER", cthunmap.map, "TOPLEFT", coordX, coordY)
 			CthunMapUnitIcon(i)
 
-            -- Tooltip (safe outside raid)
-            local name = GetRaidRosterInfo(i)
-            if MouseIsOver(unitFrame) and name and name ~= UnitName("player") then
+			-- Tooltip
+			local name = GetRaidRosterInfo(i)
+			if MouseIsOver(unitFrame) and name and name ~= UnitName("player") then
 				if GetRaidTargetIndex("raid" .. i) then
-                    tooltipText = tooltipText .. name ..
+					tooltipText = tooltipText .. name ..
 						SpellstatusV2IndexToIcon[GetRaidTargetIndex("raid" .. i)] .. "\n"
 				else
 					tooltipText = tooltipText .. name .. "\n"
@@ -966,20 +1003,20 @@ function module:SetupMap()
 	cthunmap:SetWidth(200)
 	cthunmap:SetHeight(32)
 
-    -- Clamp saved map position BEFORE anchoring
-    local uiW, uiH = UIParent:GetWidth(), UIParent:GetHeight()
-    local w, h = cthunmap:GetWidth(), cthunmap:GetHeight()
+	-- Clamp saved map position BEFORE anchoring
+	local uiW, uiH = UIParent:GetWidth(), UIParent:GetHeight()
+	local w, h = cthunmap:GetWidth(), cthunmap:GetHeight()
 
-    local x = self.db.profile.mapX or 200
-    local y = self.db.profile.mapY or -200
+	local x = self.db.profile.mapX or 200
+	local y = self.db.profile.mapY or -200
 
-    if x < 0 then x = 0 end
-    if x > uiW - w then x = uiW - w end
-    if y > 0 then y = 0 end
-    if y < -uiH + h then y = -uiH + h end
+	if x < 0 then x = 0 end
+	if x > uiW - w then x = uiW - w end
+	if y > 0 then y = 0 end
+	if y < -uiH + h then y = -uiH + h end
 
-    self.db.profile.mapX = x
-    self.db.profile.mapY = y
+	self.db.profile.mapX = x
+	self.db.profile.mapY = y
 
 	cthunmap:SetBackdrop({
 		-- bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", tile = true, tileSize = 16,
@@ -1092,19 +1129,20 @@ function module:SetupMap()
 	end
 end
 
--- Adds a command that forces the C'Thun map to appear. This can be used to test the map and save its settings outside of the raid.
+-- Adds command that forces the C'Thun map to appear. Use to test map and save its settings outside of the raid
 SLASH_CTHUNMAPSHOW1 = "/cthunmapshow"
 SlashCmdList["CTHUNMAPSHOW"] = function()
-    local mod = BigWigs:GetModule("C'Thun", true)
-    if not mod then
-        DEFAULT_CHAT_FRAME:AddMessage("C'Thun module not loaded.")
-        return
-    end
+	local mod = BigWigs:GetModule("C'Thun", true)
+	if not mod then
+		DEFAULT_CHAT_FRAME:AddMessage("C'Thun module not loaded.")
+		return
+	end
 
-    if not cthunmap then
-        mod:SetupMap()
-    end
+	if not cthunmap then
+		mod:SetupMap()
+	end
 
-    cthunmap:Show()
-    DEFAULT_CHAT_FRAME:AddMessage("C'Thun map forced visible.")
+	SetMapToCurrentZone()
+	cthunmap:Show()
+	DEFAULT_CHAT_FRAME:AddMessage("C'Thun map forced visible.")
 end
