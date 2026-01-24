@@ -65,13 +65,12 @@ L:RegisterTranslations("enUS", function()
 		
 		trigger_Enrage = "Sanv Tas'dal gains Enrage",
 		msg_Enrage = "Enrage - Tranq now!",
-		
-		trigger_curseRiftYou = "You are afflicted by Curse of the Rift",
-		trigger_curseRiftOther = "(.+) is afflicted by Curse of the Rift",
-		trigger_curseRiftImmune = "Sanv Tas'dal 's Curse of the Rift fails%. (.+) is immune%.",
+
+		trigger_curseRift = "afflicted by Curse of the Rift", -- triggers on player and raid member curse application
+		trigger_curseRiftImmune = "Curse of the Rift fails%.", -- triggers only on raid member immunity messages. Does not account for "Sanv Tas'dal's Curse of the Rift failed. You are immune." but it shouldn't be necessary
 		bar_curseRift = "Curse of the Rift",
-		
-		trigger_riftFeedback = "Sanv Tas'dal 's Rift Feedback",
+
+		trigger_riftFeedback = "Sanv Tas'dal's Rift Feedback",
 		bar_riftFeedback = "Rift Feedback",
 	}
 end)
@@ -152,12 +151,9 @@ function module:AfflictionEvent(msg)
 		if player then
 			self:Sync(syncName.phaseShifted .. " " .. player)
 		end
-		
-	-- Curse of the Rift
-	elseif string.find(msg, L["trigger_curseRiftYou"]) then
-		self:Sync(syncName.curseRift)
 
-	elseif string.find(msg, L["trigger_curseRiftOther"]) then
+	-- Curse of the Rift
+	elseif string.find(msg, L["trigger_curseRift"]) then
 		self:Sync(syncName.curseRift)
 
 	elseif string.find(msg, L["trigger_curseRiftImmune"]) then
@@ -305,14 +301,14 @@ function module:Test()
 			print("Test: " .. msg)
 			module:AfflictionEvent(msg)
 		end },
-		
+
 		-- Curse of the Rift when others have FAP active
 		{ time = 7, func = function() 
-			local msg = "Sanv Tas'dal 's Curse of the Rift fails. TestPlayer2 is immune."
+			local msg = "Sanv Tas'dal's Curse of the Rift fails. TestPlayer2 is immune."
 			print("Test: " .. msg)
 			module:AfflictionEvent(msg)
 		end },
-		
+
 		-- Phase shifted fading from others
 		{ time = 10, func = function()
 			local msg = "Phase Shifted fades from " .. testPlayerName1
@@ -334,7 +330,7 @@ function module:Test()
 			module:AfflictionEvent(msg)
 		end },
 
-		-- Test Curse of the Rift when others get it
+		-- Curse of the Rift on others
 		{ time = 22, func = function() 
 			local msg = testPlayerName1 .. " is afflicted by Curse of the Rift"
 			print("Test: " .. msg)
@@ -359,16 +355,16 @@ function module:Test()
 			print("Test: Forcing Add Phase (40%)")
 
 			self.hitForty = nil
-			
-			-- Manually trigger add phase logic
+
+			-- Add phase manual trigger
 			self:RemoveBar(L["bar_curseRift"])
 			self:RemoveBar(L["bar_overflowingHatredCast"])
 			self:Message(L["msg_openingTheRift"], "Attention", nil, "Alarm")
-			
+
 			if self.db.profile.openingtherift then
 				self:Bar(L["bar_openingTheRift"], timer.openingTheRift, icon.openingTheRift, true, "Green")
 			end
-			
+
 			self.hitForty = true
 		end },
 
@@ -389,7 +385,7 @@ function module:Test()
 			print("Test: " .. msg)
 			module:CHAT_MSG_SPELL_PERIODIC_CREATURE_BUFFS(msg)
 		end },
-		
+
 		-- Curse of the Rift when the player gets it
 		{ time = 37, func = function()
 			local msg = "You are afflicted by Curse of the Rift"
@@ -397,21 +393,21 @@ function module:Test()
 			module:AfflictionEvent(msg)
 			self:RemoveBar(L["bar_openingTheRift"])
 		end },
-				
+
 		-- Rift Feedback hits
 		{ time = 42, func = function()
-			local msg = "Sanv Tas'dal 's Rift Feedback hits TestPlayer1 for 0 Arcane damage. (3000 resisted)"
+			local msg = "Sanv Tas'dal's Rift Feedback hits TestPlayer1 for 0 Arcane damage. (3000 resisted)"
 			print("Test: " .. msg)
 			module:BeginsCastEvent(msg)
 		end },
-		
-		-- Test Rift Feedback resists
+
+		-- Rift Feedback resists
 		{ time = 45, func = function()
-			local msg = "Sanv Tas'dal 's Rift Feedback was resisted by " .. testPlayerName2
+			local msg = "Sanv Tas'dal's Rift Feedback was resisted by " .. testPlayerName2
 			print("Test: " .. msg)
 			module:BeginsCastEvent(msg)
 		end },
-		
+
 		{ time = 50, func = function()
 			print("Test: Disengage")
 			module:Disengage()
