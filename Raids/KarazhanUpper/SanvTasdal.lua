@@ -1,7 +1,7 @@
 local module, L = BigWigs:ModuleDeclaration("Sanv Tas'dal", "Karazhan")
 
 -- module variables
-module.revision = 30002
+module.revision = 30003
 module.enabletrigger = module.translatedName
 module.toggleoptions = { "phaseshifted", "overflowinghatred", "openingtherift", "curseoftherift", "riftfeedback", "bosskill" }
 module.zonename = {
