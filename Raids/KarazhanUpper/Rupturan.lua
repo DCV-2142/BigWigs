@@ -2,7 +2,7 @@ local module, L = BigWigs:ModuleDeclaration("Rupturan the Broken", "Karazhan")
 
 module.revision = 30003
 module.enabletrigger = module.translatedName
-module.toggleoptions = { "livingstone", "dirtmound", "dirtmoundmark", "flamestrike", "flamestrikemove", "reform", "bosskill" }
+module.toggleoptions = { "livingstone", "dirtmound", "dirtmoundmark", "igniteearth", "flamestrike", "flamestrikemove", "reform", "bosskill" }
 module.zonename = {
 	AceLibrary("AceLocale-2.2"):new("BigWigs")["Tower of Karazhan"],
 	AceLibrary("Babble-Zone-2.2")["Tower of Karazhan"],
@@ -14,6 +14,7 @@ module.defaultDB = {
 	livingstone     = true,
 	dirtmound       = true,
 	dirtmoundmark   = false,
+	igniteearth     = true,
 	flamestrike     = true,
 	flamestrikemove = true,
 	reform          = true,
@@ -37,6 +38,10 @@ L:RegisterTranslations("enUS", function() return {
 	dirtmoundmark_name   = "Mark Dirt Mound Target",
 	dirtmoundmark_desc   = "Mark the player Dirt Mound is chasing with a Diamond.",
 
+	igniteearth_cmd     = "igniteearth",
+	igniteearth_name    = "Ignite Earth",
+	igniteearth_desc    = "Show Ignite Earth cooldown",
+
 	flamestrike_cmd      = "flamestrike",
 	flamestrike_name     = "Flamestrike Cast",
 	flamestrike_desc     = "Warn when Flamestrike (Ignite Rock) is casting.",
@@ -50,6 +55,7 @@ L:RegisterTranslations("enUS", function() return {
 	reform_desc          = "When you kill a Fragment, show show time left until Rupturan will be reformed.",
 
 	-- Bars / Messages
+	bar_ignite_earth    = "Ignite Earth",
 	bar_ignite_rock      = "Flamestrike casting",
 	warn_ignite_rock     = "Incoming!",
 	msg_flamestrike      = "Move out of Flamestrike!",
@@ -69,6 +75,7 @@ L:RegisterTranslations("enUS", function() return {
 	trigger_dm_quake     = "Dirt Mound's Quake .?.its (.+) for",
 	trigger_dm_spawn     = "Rupturan commands the earth to crush (.+)!",
 	trigger_dm_die       = "Dirt Mound dies",
+	trigger_igniteearth = "Rupturan the Broken begins to cast Ignite Earth",
 	trigger_flamestrike  = "You are afflicted by Ignite Rock",
 	trigger_igniterock   = "Fragment of Rupturan begins to cast Ignite Rock",
 	trigger_reform       = "Fragment of Rupturan begins to cast Reform",
@@ -76,6 +83,8 @@ L:RegisterTranslations("enUS", function() return {
 
 local timer = {
 	earthstomp = 5,
+	igniteEarthDelay = 3,
+	igniteEarth = 13,
 	igniteRockCD = {20,53},
 	igniteRock = 3,
 	reform = 10,
@@ -84,6 +93,7 @@ local timer = {
 local icon = {
 	earthstomp = "Ability_ThunderClap",
 	quake      = "Spell_Nature_Earthquake",
+	igniteEarth = "Spell_Fire_Immolation",
 	igniteRock = "Spell_Fire_SelfDestruct",
 	fire       = "Spell_Fire_Fire", -- warning when standing in Ignite Rock (confusing if same icon as incoming cast)
 	reform     = "Spell_Nature_AstralRecalGroup",
@@ -102,6 +112,7 @@ local spellIds = {
 	reform     = 51299,
 }
 
+local igniteEarthStartEvent = "RupturanIgniteEarthStart" -- this has to be used due to ignite bar having a 3s trigger delay
 -- keep track of which player currently has popcorn
 local mound_chasing = nil
 
@@ -129,8 +140,9 @@ function module:OnEnable()
 
 	if SUPERWOW_VERSION or SetAutoloot then
 		self:RegisterEvent("UNIT_CASTEVENT")
+		self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE", "CastEvent") -- Ignite Earth (begins to cast)
 	else
-		self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE", "CastEvent") -- Ignite Rock cast
+		self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE", "CastEvent") -- Ignite Rock / Ignite Earth cast
 		self:RegisterEvent("CHAT_MSG_SPELL_CREATURE_VS_CREATURE_BUFF", "CastEvent") -- Reform cast
 	end
 
@@ -149,6 +161,8 @@ end
 
 function module:OnDisengage()
 	-- clean up bars
+	self:CancelScheduledEvent(igniteEarthStartEvent)
+	self:RemoveBar(L.bar_ignite_earth)
 	self:RemoveBar(L.bar_ls_earthstomp)
 	self:RestorePreviousRaidTargetForPlayer(mound_chasing)
 end
@@ -176,7 +190,12 @@ function module:Event(msg)
 			return
 		end
 	end
+
 	if string.find(msg, L.trigger_phase2) then
+		-- Cancel Ignite Earth bar if Phase 2 starts
+		self:CancelScheduledEvent(igniteEarthStartEvent)
+		self:RemoveBar(L.bar_ignite_earth)
+		
 		self:Sync(syncName.phase2)
 		return
 	end
@@ -200,6 +219,11 @@ function module:UNIT_CASTEVENT(caster,target,action,spellId,castTime)
 end
 
 function module:CastEvent(msg)
+	if self.db.profile.igniteearth and string.find(msg, L.trigger_igniteearth) then
+		self:IgniteEarthCast()
+		return
+	end
+
 	if string.find(msg, L.trigger_igniterock) then
 		self:Sync(syncName.igniteRock .. " " .. spellIds.igniteRock)
 	end
@@ -272,6 +296,19 @@ function module:DirtMoundSpawn(player)
 	end
 end
 
+function module:IgniteEarthCast()
+	if not self.db.profile.igniteearth then return end
+
+	-- Reset any pending start and existing bar
+	self:CancelScheduledEvent(igniteEarthStartEvent)
+	self:RemoveBar(L.bar_ignite_earth)
+
+	-- Start 3s after detecting the cast line
+	self:ScheduleEvent(igniteEarthStartEvent, function()
+		self:Bar(L.bar_ignite_earth, timer.igniteEarth, icon.igniteEarth)
+	end, timer.igniteEarthDelay)
+end
+
 function module:Phase2()
 	-- clear popcorn mark
 	self:RestorePreviousRaidTargetForPlayer(mound_chasing)
@@ -302,6 +339,9 @@ function module:Test()
 	BigWigs:EnableModule(self:ToString())
 
 	local player = UnitName("player")
+	local raid1 = UnitName("raid1") or "Bob"
+	local raid2 = UnitName("raid2") or "Alice"
+
 	local tests = {
 		-- after  1s, simulate the “Crash Landing fades from Living Stone” fade event
 		{0,
@@ -325,12 +365,17 @@ function module:Test()
 		{16,
 		"Emote raid1 test:",
 		"CHAT_MSG_RAID_BOSS_EMOTE",
-		"Rupturan commands the earth to crush "..UnitName("raid1").."!"},
+		"Rupturan commands the earth to crush "..raid1.."!"},
+		-- ignite earth cast before phase 2
+		{17,
+		"Ignite Earth Cast:",
+		"CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE",
+		"Rupturan the Broken begins to cast Ignite Earth." },
 		-- after  4s, simulate the same on “Bob”
 		{19,
 		"Emote raid2 test:",
 		"CHAT_MSG_RAID_BOSS_EMOTE",
-		"Rupturan commands the earth to crush "..UnitName("raid2").."!"},
+		"Rupturan commands the earth to crush "..raid2.."!"},
 		{22,
 		"Phase 2 change:",
 		"CHAT_MSG_MONSTER_YELL",
