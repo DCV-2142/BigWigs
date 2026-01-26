@@ -934,8 +934,13 @@ function GetCthunCoords(unit)
 	return x, y
 end
 
+local lastMapUpdate = 0
 function UpdateCthunMap()
-	SetMapToCurrentZone()
+	if GetTime() - lastMapUpdate > 2 then -- only setmap every 2 seconds instead of every frame
+		SetMapToCurrentZone()
+		lastMapUpdate = GetTime()
+	end
+
 	if not cthunmap.map or cthunmap.map:GetWidth() == 0 or cthunmap.map:GetHeight() == 0 then
 		return
 	end
@@ -1004,6 +1009,7 @@ function module:SetupMap()
 	cthunmap:SetHeight(32)
 
 	-- Clamp saved map position BEFORE anchoring
+	-- This prevents off-screen maps and avoids corrupted saved vars
 	local uiW, uiH = UIParent:GetWidth(), UIParent:GetHeight()
 	local w, h = cthunmap:GetWidth(), cthunmap:GetHeight()
 
