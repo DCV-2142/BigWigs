@@ -84,7 +84,7 @@ L:RegisterTranslations("enUS", function() return {
 local timer = {
 	earthstomp = 5,
 	igniteEarthDelay = 3,
-	igniteEarth = 13,
+	igniteEarth = 16,
 	igniteRockCD = {20,53},
 	igniteRock = 3,
 	reform = 10,
