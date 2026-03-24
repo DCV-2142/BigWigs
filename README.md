@@ -3,7 +3,7 @@ Differences between Elesion's BigWigs and this fork:
 * The C'Thun map now appears when the C'Thun module is activated(it used to appear only on pull). This gives players plenty of time to see where they are and where to go before the fight starts.
 
 # BigWigs Golden Edition
-Big updates to K40 and MC (**check your boss settings!**), small fixes and updates here and there. Mostly tested.
+Big updates to K40, BWL, and MC (**check your boss settings!**), small fixes and updates here and there. Mostly tested.
 
 Updates are summarized in the [changelog](https://github.com/ElesionWoW/BigWigs/blob/master/documentation/changelog.txt). Details are in individual commits.
 ## Karazhan 40 - Highlights
@@ -18,6 +18,7 @@ Updates are summarized in the [changelog](https://github.com/ElesionWoW/BigWigs/
 * Mephistroth - Doom bar, purge alert, better Shards handling, sound cue on Shackle fade
 ## Other Feature Highlights
 * Announcing bars to /raid now requires a Shift-click to prevent accidental spam.
+* BWL - new Ezzel Darkbrewer module, updates and 1.18.1 fixes for Nefarian, Razorgore, Flamegor, Broodlord Lashlayer
 * AQ40 - C'Thun map fix, vastly improved monitoring of Stomach Tentacles; improved map coordinates (by [DCV-2142](https://github.com/DCV-2142/BigWigs))
 * MC - warning about tank knockback at Ragnaros, improved information at Thaurissan
 * ZG & AQ20 - minor fixes
